@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import RevealWrapper from '../components/layout/RevealWrapper'
 import { useAuthStore } from '../store'
 import api from '../lib/api'
+import { supabase } from '../lib/supabase'
 import {
   Users,
   RefreshCw,
@@ -62,20 +63,69 @@ export default function AdminPage() {
       // Load defects count
       try {
         const dRes = await api.get('/defects')
-        if (dRes?.defects) setStats(prev => ({ ...prev, totalDefects: dRes.defects.length }))
-      } catch {}
+        if (dRes && Array.isArray(dRes.defects)) {
+          setStats(prev => ({ ...prev, totalDefects: dRes.defects.length }))
+        }
+      } catch {
+        try {
+          const { count } = await supabase.from('defects').select('*', { count: 'exact', head: true })
+          if (count !== null && count !== undefined) setStats(prev => ({ ...prev, totalDefects: count }))
+        } catch {}
+      }
 
       // Load plans count
       try {
         const pRes = await api.get('/plans')
-        if (pRes?.plans) setStats(prev => ({ ...prev, totalPlans: pRes.plans.length }))
-      } catch {}
+        if (pRes && Array.isArray(pRes.plans)) {
+          setStats(prev => ({ ...prev, totalPlans: pRes.plans.length }))
+        }
+      } catch {
+        try {
+          const { count } = await supabase.from('block_plans').select('*', { count: 'exact', head: true })
+          if (count !== null && count !== undefined) setStats(prev => ({ ...prev, totalPlans: count }))
+        } catch {}
+      }
 
     } catch (err) {
       console.error('Failed to load admin data:', err)
     } finally {
       setLoading(false)
       setRefreshing(false)
+    }
+  }
+
+  const [dbActionLoading, setDbActionLoading] = useState(false)
+  const [dbMessage, setDbMessage] = useState(null)
+
+  const handleAdminClearDefects = async () => {
+    if (!window.confirm('Wipe ALL defects from Supabase? This will set defect count to 0.')) return
+    setDbActionLoading(true)
+    try {
+      try { await api.delete('/defects') } catch {}
+      await supabase.from('defects').delete().neq('id', '___PURGE___')
+      setDbMessage('✓ Defects table cleared to 0 rows in Supabase.')
+      await loadData()
+    } catch (err) {
+      setDbMessage('Error clearing defects: ' + err.message)
+    } finally {
+      setDbActionLoading(false)
+      setTimeout(() => setDbMessage(null), 4000)
+    }
+  }
+
+  const handleAdminClearPlans = async () => {
+    if (!window.confirm('Wipe ALL block plans from Supabase? This will set plans count to 0.')) return
+    setDbActionLoading(true)
+    try {
+      try { await api.delete('/plans') } catch {}
+      await supabase.from('block_plans').delete().neq('id', '___PURGE___')
+      setDbMessage('✓ Block plans table cleared to 0 rows in Supabase.')
+      await loadData()
+    } catch (err) {
+      setDbMessage('Error clearing plans: ' + err.message)
+    } finally {
+      setDbActionLoading(false)
+      setTimeout(() => setDbMessage(null), 4000)
     }
   }
 
@@ -227,6 +277,64 @@ export default function AdminPage() {
                 <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>{card.trend}</p>
               </motion.div>
             ))}
+          </div>
+
+          {/* Supabase Live Database Governance & Sync Controls */}
+          <div className="card" style={{ padding: 'var(--space-xl)', marginBottom: 'var(--space-xl)', border: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--space-md)', marginBottom: 'var(--space-xs)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '38px', height: '38px', borderRadius: 'var(--radius-card)', background: 'rgba(109, 184, 123, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Database size={20} color="var(--status-healthy)" />
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0 }}>Supabase Database Synchronization</h3>
+                    <span className="badge" style={{ background: 'rgba(109, 184, 123, 0.15)', color: 'var(--status-healthy)', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      <CheckCircle2 size={11} /> Connected & Realtime Active
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
+                    Inspect live PostgreSQL table records, test real-time data sync, and perform database maintenance.
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
+                <button
+                  onClick={handleAdminClearDefects}
+                  disabled={dbActionLoading}
+                  className="btn btn-secondary"
+                  style={{ color: 'var(--dept-conflict)', borderColor: 'rgba(201, 79, 79, 0.35)', padding: '8px 14px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Trash2 size={13} color="var(--dept-conflict)" />
+                  <span>Clear Defects ({stats.totalDefects})</span>
+                </button>
+                <button
+                  onClick={handleAdminClearPlans}
+                  disabled={dbActionLoading}
+                  className="btn btn-secondary"
+                  style={{ color: 'var(--dept-conflict)', borderColor: 'rgba(201, 79, 79, 0.35)', padding: '8px 14px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Trash2 size={13} color="var(--dept-conflict)" />
+                  <span>Clear Block Plans ({stats.totalPlans})</span>
+                </button>
+                <button
+                  onClick={loadData}
+                  disabled={refreshing}
+                  className="btn btn-secondary"
+                  style={{ padding: '8px 14px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
+                  <span>Sync DB Counts</span>
+                </button>
+              </div>
+            </div>
+
+            {dbMessage && (
+              <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'rgba(109, 184, 123, 0.12)', border: '1px solid rgba(109, 184, 123, 0.3)', color: 'var(--status-healthy)', fontWeight: 700, fontSize: '0.82rem', marginTop: '10px' }}>
+                {dbMessage}
+              </div>
+            )}
           </div>
 
           {/* Platform Activity */}

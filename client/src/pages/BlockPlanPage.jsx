@@ -43,9 +43,11 @@ import {
   MapPin,
   Calendar,
   Navigation,
-  Train
+  Train,
+  Trash2
 } from 'lucide-react'
 import api from '../lib/api'
+import { supabase } from '../lib/supabase'
 import LocationAutocomplete from '../components/ui/LocationAutocomplete'
 import InteractiveLocationMapPicker from '../components/ui/InteractiveLocationMapPicker'
 import { INDIAN_RAILWAY_DIVISIONS } from './DefectPage'
@@ -170,17 +172,71 @@ export default function BlockPlanPage() {
   const fetchData = async () => {
     try {
       setRefreshing(true)
-      const [plansRes, defRes] = await Promise.all([
-        api.get('/plans').catch(() => null),
-        api.get('/defects').catch(() => null)
-      ])
+      let plansData = null
+      let defectsData = null
+      let src = 'Supabase Live DB'
 
-      if (plansRes?.plans) {
-        setPlans(plansRes.plans)
-        setDataSource(plansRes.source || 'RailLink Live DB')
+      // Primary: Fetch from Express backend
+      try {
+        const [plansRes, defRes] = await Promise.all([
+          api.get('/plans').catch(() => null),
+          api.get('/defects').catch(() => null)
+        ])
+        if (plansRes && Array.isArray(plansRes.plans)) {
+          plansData = plansRes.plans
+          src = plansRes.source || 'Supabase Live DB'
+        }
+        if (defRes && Array.isArray(defRes.defects)) {
+          defectsData = defRes.defects.map(normalizeDefect)
+        }
+      } catch (apiErr) {
+        console.warn('[BlockPlan API Warning]: Falling back to direct Supabase fetch:', apiErr)
       }
-      if (defRes?.defects) {
-        setDefectsList(defRes.defects.map(normalizeDefect))
+
+      // Fallback: Direct Supabase query if backend is unreachable
+      if (!plansData) {
+        try {
+          const { data, error } = await supabase
+            .from('block_plans')
+            .select('*')
+            .order('created_at', { ascending: false })
+          if (!error && Array.isArray(data)) {
+            plansData = data.map(p => ({
+              id: p.id,
+              title: p.title,
+              corridorId: p.corridor_id,
+              corridor: p.corridor,
+              track: p.track,
+              date: p.date || p.created_at?.split('T')[0],
+              startTime: p.start_time,
+              endTime: p.end_time,
+              duration: p.duration,
+              departments: p.departments || [],
+              status: p.status,
+              type: p.type,
+              priority: p.priority || 'High',
+              efficiencyScore: p.efficiency_score,
+              coordinationIndex: p.coordination_index,
+              trainsImpacted: p.trains_impacted || 0,
+              freightDiverted: p.freight_diverted || 0,
+              aiOptimized: p.ai_optimized || false,
+              description: p.description || '',
+              conflictDetails: p.conflict_details || null,
+              suggestedResolution: p.suggested_resolution || null
+            }))
+            src = 'Supabase Cloud (Direct)'
+          }
+        } catch (sbErr) {
+          console.warn('[Supabase Direct Plans Warning]:', sbErr)
+        }
+      }
+
+      if (plansData !== null) {
+        setPlans(plansData)
+        setDataSource(`${src} (${plansData.length} block${plansData.length === 1 ? '' : 's'})`)
+      }
+      if (defectsData !== null) {
+        setDefectsList(defectsData)
       }
     } catch (err) {
       console.error('Failed to load block plans data:', err)
@@ -190,8 +246,23 @@ export default function BlockPlanPage() {
     }
   }
 
+  // Realtime Supabase Subscription for Block Plans and Defects
   useEffect(() => {
     fetchData()
+
+    const channel = supabase
+      .channel('block-plans-realtime-channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'block_plans' }, () => {
+        fetchData()
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'defects' }, () => {
+        fetchData()
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [])
 
   // Auto-open schedule modal if navigated from Defect Explorer with ?scheduleDefect=ID
@@ -647,6 +718,40 @@ export default function BlockPlanPage() {
       if (selectedPlan && selectedPlan.id === plan.id) {
         setSelectedPlan(prev => ({ ...prev, status: 'Scheduled' }))
       }
+    } finally {
+      setActionInProgress(false)
+      setTimeout(() => setNotification(null), 4000)
+    }
+  }
+
+  const handleDeletePlan = async (plan) => {
+    const planId = typeof plan === 'string' ? plan : plan.id
+    const confirmDelete = window.confirm(`Permanently delete block plan ${planId} from Supabase database?`)
+    if (!confirmDelete) return
+
+    setActionInProgress(true)
+    try {
+      setPlans(prev => prev.filter(p => p.id !== planId))
+      if (selectedPlan?.id === planId) setSelectedPlan(null)
+
+      let deleted = false
+      try {
+        await api.delete(`/plans/${planId}`)
+        deleted = true
+      } catch (apiErr) {
+        console.warn('[Plan Delete API Warning]: Falling back to direct Supabase delete', apiErr)
+      }
+
+      if (!deleted) {
+        await supabase.from('block_plans').delete().eq('id', planId)
+      }
+
+      setNotification(`✓ Block ${planId} permanently deleted from database.`)
+      await fetchData()
+    } catch (err) {
+      console.error('Delete plan failed:', err)
+      alert('Could not delete block plan: ' + (err.message || 'Error'))
+      fetchData()
     } finally {
       setActionInProgress(false)
       setTimeout(() => setNotification(null), 4000)
@@ -1248,8 +1353,17 @@ export default function BlockPlanPage() {
 
       {/* VIEW MODE 2: PLAN CARDS GRID */}
       {viewMode === 'grid' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 'var(--space-lg)', marginBottom: 'var(--space-2xl)' }}>
-          {filteredPlans.map((plan, idx) => {
+        <div style={{ display: filteredPlans.length === 0 ? 'block' : 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 'var(--space-lg)', marginBottom: 'var(--space-2xl)' }}>
+          {filteredPlans.length === 0 ? (
+            <div className="card" style={{ padding: 'var(--space-3xl)', textAlign: 'center', color: 'var(--text-muted)' }}>
+              <CheckCircle2 size={40} color="var(--status-healthy)" style={{ margin: '0 auto var(--space-md)' }} />
+              <h4 style={{ fontSize: '1.2rem', fontWeight: 900, color: 'var(--text-primary)' }}>No Block Plans Found in Database</h4>
+              <p style={{ fontSize: '0.875rem', marginTop: '6px', maxWidth: '500px', margin: '6px auto 0' }}>
+                The Supabase database is completely synchronized with 0 scheduled plans. Use "AI Optimize Plan" or "Schedule Block" above to generate corridor curfew windows.
+              </p>
+            </div>
+          ) : (
+            filteredPlans.map((plan, idx) => {
             const isConflict = plan.status === 'Conflict'
             return (
               <RevealWrapper key={plan.id} delay={idx * 0.04}>
@@ -1328,7 +1442,7 @@ export default function BlockPlanPage() {
                 </motion.div>
               </RevealWrapper>
             )
-          })}
+          }))}
         </div>
       )}
 
@@ -1994,6 +2108,26 @@ export default function BlockPlanPage() {
                       <span>Re-evaluate & Reschedule Plan</span>
                     </button>
                   )}
+
+                  {/* Delete Plan Action */}
+                  <button
+                    onClick={() => handleDeletePlan(selectedPlan)}
+                    disabled={actionInProgress}
+                    className="btn btn-secondary"
+                    style={{
+                      padding: '12px 16px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      color: 'var(--dept-conflict)',
+                      borderColor: 'rgba(201, 79, 79, 0.35)'
+                    }}
+                    title="Permanently remove this block plan from Supabase"
+                  >
+                    <Trash2 size={15} color="var(--dept-conflict)" />
+                    <span>Delete</span>
+                  </button>
                 </div>
               </div>
             </motion.div>

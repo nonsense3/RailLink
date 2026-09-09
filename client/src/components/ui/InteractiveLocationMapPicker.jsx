@@ -64,17 +64,21 @@ export default function InteractiveLocationMapPicker({
   onTrackLineChange,
   className = ''
 }) {
-  // Initialize with Mathura Junction as default if nothing provided
+  // Initialize with division primary station if provided, or matched location
   const initialStation = useMemo(() => {
+    if (division) {
+      const matchDiv = RAILWAY_STATIONS.find(s => s.division === division)
+      if (matchDiv) return matchDiv
+    }
     if (location) {
       const matched = RAILWAY_STATIONS.find(s => location.toLowerCase().includes(s.name.toLowerCase()) || (s.code && location.includes(s.code)))
       if (matched) return matched
     }
-    return RAILWAY_STATIONS.find(s => s.code === 'MTJ') || RAILWAY_STATIONS[0]
+    return RAILWAY_STATIONS.find(s => s.code === 'SDAH') || RAILWAY_STATIONS[0]
   }, [])
 
   const [selectedStation, setSelectedStation] = useState(initialStation)
-  const [selectedTrack, setSelectedTrack] = useState(trackLine || 'Up Main Line')
+  const [selectedTrack, setSelectedTrack] = useState(trackLine || initialStation?.supportedLines?.[0] || 'Up Main Line')
   const [currentCoords, setCurrentCoords] = useState([initialStation.lat, initialStation.lng])
   const [flyTarget, setFlyTarget] = useState(null)
   const [mapZoom, setMapZoom] = useState(13)
@@ -85,6 +89,19 @@ export default function InteractiveLocationMapPicker({
   const [isSearching, setIsSearching] = useState(false)
   const [mapStyle, setMapStyle] = useState('satellite') // 'satellite' | 'osm'
   const searchBoxRef = useRef(null)
+
+  // Scoped stations and corridors strictly for the selected division
+  const divisionStations = useMemo(() => {
+    if (!division) return RAILWAY_STATIONS
+    const filtered = RAILWAY_STATIONS.filter(s => s.division === division)
+    return filtered.length > 0 ? filtered : RAILWAY_STATIONS
+  }, [division])
+
+  const divisionCorridors = useMemo(() => {
+    if (!division) return DEFAULT_RAILWAY_CORRIDORS
+    const filtered = DEFAULT_RAILWAY_CORRIDORS.filter(c => c.division === division)
+    return filtered.length > 0 ? filtered : DEFAULT_RAILWAY_CORRIDORS
+  }, [division])
 
   // Keep internal states in sync with incoming props
   const lastLocationPropRef = useRef(location)
@@ -101,8 +118,10 @@ export default function InteractiveLocationMapPicker({
     if (division && division !== lastDivisionPropRef.current) {
       lastDivisionPropRef.current = division
       // Find primary station associated with this division
-      const matchedStation = RAILWAY_STATIONS.find(s => s.division === division) ||
-                             (corridor ? RAILWAY_STATIONS.find(s => s.corridor === corridor) : null)
+      const matchingStations = RAILWAY_STATIONS.filter(s => s.division === division)
+      const matchedStation = matchingStations[0] ||
+                             (corridor ? RAILWAY_STATIONS.find(s => s.corridor === corridor) : null) ||
+                             RAILWAY_STATIONS[0]
       if (matchedStation) {
         setSelectedStation(matchedStation)
         setSearchQuery(matchedStation.name)
@@ -112,13 +131,14 @@ export default function InteractiveLocationMapPicker({
         setMapZoom(13)
 
         const supported = matchedStation.supportedLines || []
-        if (supported.length > 0 && !supported.includes(selectedTrack)) {
-          setSelectedTrack(supported[0])
-          if (onTrackLineChange) onTrackLineChange(supported[0])
-        }
+        const lineToSet = supported[0] || 'Up Main Line'
+        setSelectedTrack(lineToSet)
+        if (onTrackLineChange) onTrackLineChange(lineToSet)
+        if (onLocationChange) onLocationChange(matchedStation.name)
+        if (onKmMarkerChange) onKmMarkerChange(matchedStation.defaultKm || 'KM 0.0')
       }
     }
-  }, [division, corridor, selectedTrack, onTrackLineChange])
+  }, [division, corridor, onTrackLineChange, onLocationChange, onKmMarkerChange])
 
   // Sync when parent changes location text directly
   useEffect(() => {
@@ -126,11 +146,16 @@ export default function InteractiveLocationMapPicker({
       lastLocationPropRef.current = location
       setSearchQuery(location)
 
-      const matched = RAILWAY_STATIONS.find(s =>
+      const matched = divisionStations.find(s =>
+        s.name.toLowerCase() === location.toLowerCase() ||
+        location.toLowerCase().includes(s.name.toLowerCase()) ||
+        (s.code && location.toUpperCase().includes(s.code))
+      ) || RAILWAY_STATIONS.find(s =>
         s.name.toLowerCase() === location.toLowerCase() ||
         location.toLowerCase().includes(s.name.toLowerCase()) ||
         (s.code && location.toUpperCase().includes(s.code))
       )
+
       if (matched && (matched.lat !== currentCoords[0] || matched.lng !== currentCoords[1])) {
         setSelectedStation(matched)
         setFlyTarget([matched.lat, matched.lng])
@@ -138,7 +163,7 @@ export default function InteractiveLocationMapPicker({
         if (matched.division) lastDivisionPropRef.current = matched.division
       }
     }
-  }, [location, currentCoords])
+  }, [location, currentCoords, divisionStations])
 
   // Ensure an initial valid selection is propagated to parent on mount
   useEffect(() => {
@@ -170,7 +195,7 @@ export default function InteractiveLocationMapPicker({
     setIsSearching(true)
     const timer = setTimeout(async () => {
       try {
-        const results = await searchRailwayLocations(searchQuery)
+        const results = await searchRailwayLocations(searchQuery, division)
         setSuggestions(results)
       } catch (err) {
         console.error('Location search failed:', err)
@@ -180,7 +205,7 @@ export default function InteractiveLocationMapPicker({
     }, 200)
 
     return () => clearTimeout(timer)
-  }, [searchQuery, isSearchOpen])
+  }, [searchQuery, isSearchOpen, division])
 
   // CORE LOGIC: Dynamic Area Selection as the User Moves the Map
   // Updates HUD live during pan for real-time station/track snapping
@@ -188,9 +213,9 @@ export default function InteractiveLocationMapPicker({
   const handleMapCenterChange = useCallback((lat, lng, isFinal) => {
     setCurrentCoords([lat, lng])
 
-    // Find nearest station and corridor from current map center
-    const nearestStn = findNearestStation(lat, lng)
-    const nearestCorr = findNearestCorridor(lat, lng)
+    // Find nearest station and corridor strictly within the selected division
+    const nearestStn = findNearestStation(lat, lng, division)
+    const nearestCorr = findNearestCorridor(lat, lng, division)
 
     if (nearestStn) {
       setSelectedStation(nearestStn)
@@ -246,7 +271,7 @@ export default function InteractiveLocationMapPicker({
         if (onTrackLineChange) onTrackLineChange(selectedTrack)
       }
     }
-  }, [selectedTrack, onLocationChange, onDivisionChange, onCorridorChange, onKmMarkerChange, onTrackLineChange])
+  }, [selectedTrack, division, onLocationChange, onDivisionChange, onCorridorChange, onKmMarkerChange, onTrackLineChange])
 
   // Select station from text autocomplete suggestions
   const handleSelectStationFromSearch = (stn) => {
@@ -278,7 +303,7 @@ export default function InteractiveLocationMapPicker({
       setCurrentCoords(midPoint)
       setMapZoom(12)
 
-      const nearestStn = findNearestStation(midPoint[0], midPoint[1])
+      const nearestStn = findNearestStation(midPoint[0], midPoint[1], division)
       if (nearestStn) {
         setSelectedStation(nearestStn)
         setSearchQuery(nearestStn.name)
@@ -312,10 +337,18 @@ export default function InteractiveLocationMapPicker({
     : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
 
   const activeCorridor = useMemo(() => {
-    return findNearestCorridor(currentCoords[0], currentCoords[1])
-  }, [currentCoords])
+    return findNearestCorridor(currentCoords[0], currentCoords[1], division)
+  }, [currentCoords, division])
 
-  const availableLines = selectedStation?.supportedLines || ALL_TRACK_LINES.map(l => l.name)
+  const availableLines = useMemo(() => {
+    if (selectedStation?.supportedLines && selectedStation.supportedLines.length > 0) {
+      return selectedStation.supportedLines
+    }
+    const divLines = new Set()
+    divisionStations.forEach(s => s.supportedLines?.forEach(l => divLines.add(l)))
+    if (divLines.size > 0) return Array.from(divLines)
+    return ALL_TRACK_LINES.map(l => l.name)
+  }, [selectedStation, divisionStations])
 
   return (
     <div className={`interactive-map-picker ${className}`} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -333,7 +366,7 @@ export default function InteractiveLocationMapPicker({
               if (onLocationChange) onLocationChange(e.target.value)
             }}
             onFocus={() => setIsSearchOpen(true)}
-            placeholder="Search station or drag map below to select area..."
+            placeholder={`Search station or platform in ${division ? division.split('—')[1]?.trim() || division : 'area'}...`}
             style={{
               paddingLeft: '38px',
               paddingRight: isSearching ? '38px' : '14px',
@@ -371,7 +404,7 @@ export default function InteractiveLocationMapPicker({
         {isSearchOpen && (
           <div className="location-autocomplete-popover" style={{ zIndex: 1200 }}>
             <div style={{ padding: '6px 10px', fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between' }}>
-              <span>SELECT STATION OR JUNCTION HUB</span>
+              <span>SELECT STATION OR JUNCTION IN THIS AREA</span>
               {suggestions.length > 0 && <span>{suggestions.length} matched</span>}
             </div>
 
@@ -410,13 +443,13 @@ export default function InteractiveLocationMapPicker({
         )}
       </div>
 
-      {/* Corridors Quick Jump Pills */}
+      {/* Corridors Quick Jump Pills Scoped to Selected Area */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflowX: 'auto', paddingBottom: '4px', scrollbarWidth: 'none' }}>
         <span style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', flexShrink: 0 }}>
-          Corridor Jump:
+          {division ? 'Area Corridors:' : 'Corridor Jump:'}
         </span>
-        {DEFAULT_RAILWAY_CORRIDORS.map(c => {
-          const isSelected = corridor && corridor.toLowerCase().includes(c.name.toLowerCase().split(' ')[0])
+        {divisionCorridors.map(c => {
+          const isSelected = corridor && (corridor === c.name || corridor.toLowerCase().includes(c.name.toLowerCase().split(' ')[0]))
           return (
             <button
               key={c.id}
@@ -553,66 +586,49 @@ export default function InteractiveLocationMapPicker({
           </button>
         </div>
 
-        {/* FIXED CENTER TARGET RETICLE (PIN LIFTS WHILE MOVING, DROPS ON MOVEEND) */}
+        {/* Tactical Crosshair Reticle Snapped to Map Center */}
         <div style={{
           position: 'absolute',
           top: '50%',
           left: '50%',
-          transform: isMoving ? 'translate(-50%, -120%) scale(1.1)' : 'translate(-50%, -100%) scale(1)',
-          transition: 'transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1)',
+          transform: 'translate(-50%, -50%)',
           zIndex: 1000,
           pointerEvents: 'none',
           display: 'flex',
           flexDirection: 'column',
-          alignItems: 'center'
+          alignItems: 'center',
+          justifyContent: 'center'
         }}>
-          {/* Station/Track Area Marker Tag */}
+          {/* Outer Pulse Ring */}
           <div style={{
-            background: 'var(--accent)',
-            color: 'var(--text-primary)',
-            padding: '2px 8px',
-            borderRadius: 'var(--radius-pill)',
-            fontSize: '10px',
-            fontWeight: 900,
-            boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
-            whiteSpace: 'nowrap',
-            marginBottom: '4px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
-            border: '1.5px solid #ffffff'
-          }}>
-            <Crosshair size={11} strokeWidth={3} />
-            <span>{selectedStation?.code || 'AREA'} • {selectedTrack.split(' ')[0]}</span>
-          </div>
-
-          {/* Pin Head */}
-          <div style={{
-            width: '18px',
-            height: '18px',
+            position: 'absolute',
+            width: isMoving ? '54px' : '44px',
+            height: isMoving ? '54px' : '44px',
             borderRadius: '50%',
-            background: '#e4a4bd',
-            border: '3px solid #ffffff',
-            boxShadow: '0 0 10px rgba(0,0,0,0.5)'
+            border: '2px dashed var(--accent)',
+            opacity: isMoving ? 0.9 : 0.45,
+            transition: 'all 0.16s ease'
           }} />
-          
-          {/* Pin Needle */}
+
+          {/* Center Pin Head */}
+          <div style={{
+            width: isMoving ? '18px' : '14px',
+            height: isMoving ? '18px' : '14px',
+            borderRadius: '50%',
+            background: 'var(--accent)',
+            border: '2.5px solid #ffffff',
+            boxShadow: '0 0 12px rgba(0,0,0,0.5)',
+            transform: isMoving ? 'scale(1.2) translateY(-4px)' : 'scale(1) translateY(0)',
+            transition: 'all 0.16s ease'
+          }} />
+
+          {/* Pin Pointer Needle */}
           <div style={{
             width: '3px',
             height: '14px',
             background: '#ffffff',
             borderRadius: '2px',
             marginTop: '-2px'
-          }} />
-
-          {/* Map Surface Drop Shadow */}
-          <div style={{
-            width: isMoving ? '8px' : '16px',
-            height: '4px',
-            borderRadius: '50%',
-            background: 'rgba(0,0,0,0.35)',
-            marginTop: '2px',
-            transition: 'all 0.16s ease'
           }} />
         </div>
 
@@ -634,7 +650,7 @@ export default function InteractiveLocationMapPicker({
           backdropFilter: 'blur(6px)',
           border: '1px solid rgba(255,255,255,0.1)'
         }}>
-          {isMoving ? 'Selecting area...' : 'Drag map area to select track & station area'}
+          {isMoving ? 'Selecting area...' : 'Drag map to explore stations & platforms in this division'}
         </div>
 
         {/* LEAFLET REACT MAP */}
@@ -670,29 +686,29 @@ export default function InteractiveLocationMapPicker({
             </Circle>
           )}
 
-          {/* Railway Corridor Polylines */}
-          {DEFAULT_RAILWAY_CORRIDORS.map(c => {
-            const isMatch = activeCorridor?.id === c.id
+          {/* Railway Corridor Polylines for Area */}
+          {divisionCorridors.map(c => {
+            const isMatch = activeCorridor?.id === c.id || corridor === c.name
             return (
               <Polyline
                 key={c.id}
                 positions={c.points}
                 pathOptions={{
-                  color: isMatch ? 'var(--accent)' : '#7ec4cf',
+                  color: isMatch ? 'var(--accent)' : (c.color || '#7ec4cf'),
                   weight: isMatch ? 5 : 3,
-                  opacity: isMatch ? 0.95 : 0.45,
+                  opacity: isMatch ? 0.95 : 0.5,
                   dashArray: isMatch ? undefined : '6 6'
                 }}
               />
             )
           })}
 
-          {/* Railway Station Circle Pins along Corridor */}
-          {RAILWAY_STATIONS.map((stn, idx) => (
+          {/* Railway Station Circle Pins strictly for Selected Area / Division */}
+          {divisionStations.map((stn, idx) => (
             <CircleMarker
               key={`${stn.code}-${idx}`}
               center={[stn.lat, stn.lng]}
-              radius={selectedStation?.code === stn.code ? 7 : 4.5}
+              radius={selectedStation?.code === stn.code ? 8 : 5}
               pathOptions={{
                 color: '#ffffff',
                 fillColor: selectedStation?.code === stn.code ? 'var(--accent)' : '#7ec4cf',
@@ -703,7 +719,7 @@ export default function InteractiveLocationMapPicker({
                 click: () => handleSelectStationFromSearch(stn)
               }}
             >
-              <Tooltip>
+              <Tooltip permanent={selectedStation?.code === stn.code} direction="top" offset={[0, -6]}>
                 <div style={{ fontSize: '11px', fontWeight: 800 }}>
                   {stn.name} ({stn.code})
                 </div>

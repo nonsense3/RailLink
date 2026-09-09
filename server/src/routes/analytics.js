@@ -1,4 +1,4 @@
-﻿import express from 'express'
+import express from 'express'
 import { dataStore } from '../services/dataStore.js'
 import { supabase, isSupabaseConfigured } from '../lib/supabase.js'
 
@@ -18,9 +18,9 @@ router.get('/kpis', async (req, res) => {
           supabase.from('block_plans').select('*'),
           supabase.from('block_requests').select('*')
         ])
-        if (!defRes.error && defRes.data?.length > 0) defects = defRes.data
-        if (!planRes.error && planRes.data?.length > 0) blockPlans = planRes.data
-        if (!reqRes.error && reqRes.data?.length > 0) blockRequests = reqRes.data
+        if (!defRes.error && Array.isArray(defRes.data)) defects = defRes.data
+        if (!planRes.error && Array.isArray(planRes.data)) blockPlans = planRes.data
+        if (!reqRes.error && Array.isArray(reqRes.data)) blockRequests = reqRes.data
       } catch (err) {
         console.warn('[Analytics KPI Supabase]:', err.message)
       }
@@ -209,9 +209,9 @@ router.get('/dashboard-summary', async (req, res) => {
           supabase.from('block_plans').select('*'),
           supabase.from('block_requests').select('*').order('created_at', { ascending: false })
         ])
-        if (!defRes.error && defRes.data?.length > 0) defects = defRes.data
-        if (!planRes.error && planRes.data?.length > 0) blockPlans = planRes.data
-        if (!reqRes.error && reqRes.data?.length > 0) blockRequests = reqRes.data
+        if (!defRes.error && Array.isArray(defRes.data)) defects = defRes.data
+        if (!planRes.error && Array.isArray(planRes.data)) blockPlans = planRes.data
+        if (!reqRes.error && Array.isArray(reqRes.data)) blockRequests = reqRes.data
       } catch (err) {
         console.warn('[Dashboard Summary Supabase]:', err.message)
       }

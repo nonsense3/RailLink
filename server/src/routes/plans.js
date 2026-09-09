@@ -8,7 +8,7 @@ router.get('/', async (req, res) => {
   if (isSupabaseConfigured() && supabase) {
     try {
       const { data, error } = await supabase.from('block_plans').select('*').order('created_at', { ascending: false })
-      if (!error && data && data.length > 0) {
+      if (!error && Array.isArray(data)) {
         // Normalize Supabase snake_case to camelCase for frontend compatibility
         const plans = data.map(p => ({
           id: p.id,
@@ -33,11 +33,11 @@ router.get('/', async (req, res) => {
           conflictDetails: p.conflict_details || null,
           suggestedResolution: p.suggested_resolution || null
         }))
-        const supabasePlanIds = new Set(plans.map(p => p.id))
-        const remainingCached = dataStore.blockPlans.filter(p => !supabasePlanIds.has(p.id))
-        const combined = [...plans, ...remainingCached]
-        dataStore.blockPlans = combined
-        return res.json({ plans: combined, source: 'Supabase Live DB' })
+        dataStore.blockPlans = plans
+        return res.json({ plans, source: 'Supabase Live DB' })
+      }
+      if (error) {
+        console.warn('[Supabase Plans Warning]:', error.message)
       }
     } catch (err) {
       console.warn('[Supabase Plans Warning]:', err.message)
@@ -355,6 +355,66 @@ router.patch('/:id/reopen', async (req, res) => {
   try {
     const updatedPlan = await updatePlanStatus(req.params.id, 'Scheduled')
     res.json({ success: true, message: `Block plan ${req.params.id} reopened and reset to Scheduled.`, plan: updatedPlan })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Delete single block plan permanently
+router.delete('/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+
+    dataStore.blockPlans = dataStore.blockPlans.filter(p => p.id !== id)
+
+    if (isSupabaseConfigured() && supabase) {
+      const { error } = await supabase.from('block_plans').delete().eq('id', id)
+      if (error) {
+        console.warn('[Supabase Delete Plan Error]:', error.message)
+        return res.status(500).json({ error: error.message })
+      }
+      console.log(`[Supabase Delete Plan Success]: Plan ${id} permanently deleted`)
+    }
+
+    res.json({ success: true, message: `Block plan ${id} permanently deleted`, id })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Clear all block plans from database
+router.delete('/', async (req, res) => {
+  try {
+    dataStore.blockPlans = []
+
+    if (isSupabaseConfigured() && supabase) {
+      const { error } = await supabase.from('block_plans').delete().neq('id', '___PURGE_ALL___')
+      if (error) {
+        console.warn('[Supabase Clear All Plans Error]:', error.message)
+        return res.status(500).json({ error: error.message })
+      }
+      console.log('[Supabase Clear All Plans Success]: All plans purged from Supabase')
+    }
+
+    res.json({ success: true, message: 'All block plans cleared successfully from database', count: 0 })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Convenience alias: POST /clear-all
+router.post('/clear-all', async (req, res) => {
+  try {
+    dataStore.blockPlans = []
+
+    if (isSupabaseConfigured() && supabase) {
+      const { error } = await supabase.from('block_plans').delete().neq('id', '___PURGE_ALL___')
+      if (error) {
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
+    res.json({ success: true, message: 'All block plans cleared successfully from database', count: 0 })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }

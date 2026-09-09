@@ -1,6 +1,7 @@
 import express from 'express'
 import { dataStore } from '../services/dataStore.js'
 import { supabase, isSupabaseConfigured } from '../lib/supabase.js'
+import { deleteTrackPhoto, deleteTrackPhotosByUrls, deleteAllTrackPhotos } from '../services/cloudinaryService.js'
 const router = express.Router()
 
 // Get all defects with optional filter by department / severity / corridor
@@ -15,7 +16,7 @@ router.get('/', async (req, res) => {
       if (corridorId) query = query.eq('corridor_id', corridorId)
 
       const { data, error } = await query
-      if (!error && data && data.length > 0) {
+      if (!error && Array.isArray(data)) {
         const normalized = data.map(d => {
           const dept = d.department || 'Engineering'
           const rawSection = d.corridor_name || ''
@@ -80,12 +81,15 @@ router.get('/', async (req, res) => {
         })
         return res.json({ defects: normalized, total: normalized.length, source: 'Supabase Live DB' })
       }
+      if (error) {
+        console.warn('[Supabase Defects Warning]:', error.message)
+      }
     } catch (err) {
       console.warn('[Supabase Defects Warning]:', err.message)
     }
   }
 
-  // Graceful fallback to unified dataStore
+  // Graceful fallback to unified dataStore only if Supabase is unconfigured or errored
   let list = dataStore.defects
   if (department) list = list.filter(d => d.department.toLowerCase().includes(department.toLowerCase()))
   if (severity) list = list.filter(d => d.severity.toLowerCase() === severity.toLowerCase())
@@ -206,6 +210,145 @@ router.patch('/:id/status', async (req, res) => {
     }
 
     res.json({ success: true, message: `Defect ${id} marked as ${status}`, defect })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Delete single defect permanently (and wipe its photo from Cloudinary)
+router.delete('/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+    let photoUrlToDelete = req.body?.photoUrl || req.query?.photoUrl || null
+
+    // If photoUrl was not passed in request, look up from memory or Supabase
+    if (!photoUrlToDelete) {
+      const inMem = dataStore.defects.find(d => d.id === id)
+      if (inMem?.photoUrl) photoUrlToDelete = inMem.photoUrl
+
+      if (!photoUrlToDelete && isSupabaseConfigured() && supabase) {
+        try {
+          const { data } = await supabase.from('defects').select('photo_url').eq('id', id).single()
+          if (data?.photo_url) photoUrlToDelete = data.photo_url
+        } catch {}
+      }
+    }
+
+    // 1. Delete inspection photo from Cloudinary if it exists
+    if (photoUrlToDelete && typeof photoUrlToDelete === 'string' && photoUrlToDelete.includes('cloudinary.com')) {
+      try {
+        await deleteTrackPhoto(photoUrlToDelete)
+      } catch (cErr) {
+        console.warn(`[Cloudinary Delete Warning on Defect ${id}]:`, cErr.message)
+      }
+    }
+
+    // 2. Remove from in-memory dataStore
+    dataStore.defects = dataStore.defects.filter(d => d.id !== id)
+
+    // 3. Remove from Supabase
+    if (isSupabaseConfigured() && supabase) {
+      const { error } = await supabase.from('defects').delete().eq('id', id)
+      if (error) {
+        console.warn('[Supabase Delete Error]:', error.message)
+        return res.status(500).json({ error: error.message })
+      }
+      console.log(`[Supabase Delete Success]: Defect ${id} permanently removed`)
+    }
+
+    res.json({ success: true, message: `Defect ${id} and photo permanently deleted`, id })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Clear all defects from database AND purge all defect inspection photos from Cloudinary
+router.delete('/', async (req, res) => {
+  try {
+    // 1. Collect all photo URLs from request, memory, and Supabase before clearing
+    const urlsToPurge = new Set()
+    if (Array.isArray(req.body?.photoUrls)) {
+      req.body.photoUrls.forEach(u => u && urlsToPurge.add(u))
+    }
+    dataStore.defects.forEach(d => {
+      if (d.photoUrl) urlsToPurge.add(d.photoUrl)
+    })
+
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        const { data: existingDefects } = await supabase.from('defects').select('photo_url')
+        if (Array.isArray(existingDefects)) {
+          existingDefects.forEach(d => {
+            if (d.photo_url) urlsToPurge.add(d.photo_url)
+          })
+        }
+      } catch (fetchErr) {
+        console.warn('[Fetch Photo URLs Warning]:', fetchErr.message)
+      }
+    }
+
+    // 2. Delete specific photos and bulk purge folders in Cloudinary
+    try {
+      if (urlsToPurge.size > 0) {
+        await deleteTrackPhotosByUrls(Array.from(urlsToPurge))
+      }
+      await deleteAllTrackPhotos()
+    } catch (cErr) {
+      console.warn('[Cloudinary Bulk Purge Warning]:', cErr.message)
+    }
+
+    // 3. Purge in-memory dataStore
+    dataStore.defects = []
+
+    // 4. Purge Supabase database table
+    if (isSupabaseConfigured() && supabase) {
+      const { error } = await supabase.from('defects').delete().neq('id', '___PURGE_ALL___')
+      if (error) {
+        console.warn('[Supabase Clear All Error]:', error.message)
+        return res.status(500).json({ error: error.message })
+      }
+      console.log('[Supabase Clear All Success]: All defects purged from Supabase')
+    }
+
+    res.json({ success: true, message: 'All defects and Cloudinary photos cleared successfully from database', count: 0 })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Convenience alias: POST /clear-all
+router.post('/clear-all', async (req, res) => {
+  try {
+    try {
+      await deleteAllTrackPhotos()
+    } catch (cErr) {
+      console.warn('[Cloudinary Bulk Purge Warning]:', cErr.message)
+    }
+
+    dataStore.defects = []
+
+    if (isSupabaseConfigured() && supabase) {
+      const { error } = await supabase.from('defects').delete().neq('id', '___PURGE_ALL___')
+      if (error) {
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
+    res.json({ success: true, message: 'All defects and Cloudinary photos cleared successfully from database', count: 0 })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Dedicated endpoint to purge Cloudinary photos
+router.post('/purge-photos', async (req, res) => {
+  try {
+    const urls = req.body?.photoUrls || []
+    if (Array.isArray(urls) && urls.length > 0) {
+      await deleteTrackPhotosByUrls(urls)
+    }
+    const results = await deleteAllTrackPhotos()
+    res.json({ success: true, message: 'Cloudinary defect photos purged successfully', results })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }

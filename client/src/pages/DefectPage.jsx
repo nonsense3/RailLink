@@ -30,27 +30,38 @@ import {
   MapPin,
   Navigation,
   Train,
-  Zap
+  Zap,
+  Trash2
 } from 'lucide-react'
 
 export const INDIAN_RAILWAY_DIVISIONS = [
-  { id: 'NR-DLI', name: 'Northern Railway — Delhi Division (DLI)', zone: 'NR', defaultCorridor: 'Delhi - Agra Semi High-Speed Corridor (Sec 4)' },
-  { id: 'NCR-AGC', name: 'North Central Railway — Agra Division (AGC)', zone: 'NCR', defaultCorridor: 'Delhi - Agra Semi High-Speed Corridor (Sec 4)' },
-  { id: 'NCR-JHS', name: 'North Central Railway — Jhansi Division (JHS)', zone: 'NCR', defaultCorridor: 'Mathura - Jhansi - Bhopal Trunk Route' },
-  { id: 'NCR-PRYJ', name: 'North Central Railway — Prayagraj Division (PRYJ)', zone: 'NCR', defaultCorridor: 'New Delhi - Kanpur - Prayagraj Main Line' },
-  { id: 'CR-CSMT', name: 'Central Railway — Mumbai CR Division (CSMT)', zone: 'CR', defaultCorridor: 'Mumbai - Pune Expressway Section (Sec 12)' },
-  { id: 'CR-PUNE', name: 'Central Railway — Pune Division (PUNE)', zone: 'CR', defaultCorridor: 'Mumbai - Pune Expressway Section (Sec 12)' },
-  { id: 'CR-BSL', name: 'Central Railway — Bhusawal Division (BSL)', zone: 'CR', defaultCorridor: 'Igatpuri - Bhusawal Super-Dense Route' },
-  { id: 'WR-MMCT', name: 'Western Railway — Mumbai WR Division (MMCT)', zone: 'WR', defaultCorridor: 'Mumbai Suburban - Ahmedabad Corridor' },
-  { id: 'WR-BRC', name: 'Western Railway — Vadodara Division (BRC)', zone: 'WR', defaultCorridor: 'Surat - Vadodara - Ahmedabad High Speed' },
-  { id: 'ER-HWH', name: 'Eastern Railway — Howrah Division (HWH)', zone: 'ER', defaultCorridor: 'Howrah - Bardhaman Chord Line' },
-  { id: 'SER-KGP', name: 'South Eastern Railway — Kharagpur Division (KGP)', zone: 'SER', defaultCorridor: 'Howrah - Kharagpur Trunk Route (Sec 2)' },
-  { id: 'SR-MAS', name: 'Southern Railway — Chennai Division (MAS)', zone: 'SR', defaultCorridor: 'Chennai - Arakkonam Fast Line (Sec 9)' },
-  { id: 'SCR-SC', name: 'South Central Railway — Secunderabad Division (SC)', zone: 'SCR', defaultCorridor: 'Secunderabad - Kazipet Fast Corridor' },
-  { id: 'SWR-SBC', name: 'South Western Railway — Bengaluru Division (SBC)', zone: 'SWR', defaultCorridor: 'Bengaluru - Mysuru Double Line Section' },
-  { id: 'ECR-DNR', name: 'East Central Railway — Danapur Division (DNR)', zone: 'ECR', defaultCorridor: 'Pt. Deen Dayal Upadhyaya - Danapur Quad' },
-  { id: 'WCR-BPL', name: 'West Central Railway — Bhopal Division (BPL)', zone: 'WCR', defaultCorridor: 'Bhopal - Itarsi High Speed Route' },
-  { id: 'NWR-JP', name: 'North Western Railway — Jaipur Division (JP)', zone: 'NWR', defaultCorridor: 'Delhi - Jaipur - Ajmer Main Line' }
+  // Kolkata / Eastern Region
+  { id: 'ER-SDAH', name: 'Eastern Railway — Sealdah Division (SDAH)', zone: 'ER', defaultCorridor: 'Sealdah - Dum Dum - Naihati - Ranaghat Main Line', city: 'Kolkata' },
+  { id: 'ER-HWH', name: 'Eastern Railway — Howrah Division (HWH)', zone: 'ER', defaultCorridor: 'Howrah - Bardhaman Chord Line', city: 'Kolkata' },
+  { id: 'ER-ASN', name: 'Eastern Railway — Asansol Division (ASN)', zone: 'ER', defaultCorridor: 'Bardhaman - Asansol - Dhanbad Main Line', city: 'Asansol' },
+  { id: 'SER-KGP', name: 'South Eastern Railway — Kharagpur Division (KGP)', zone: 'SER', defaultCorridor: 'Howrah - Kharagpur Trunk Route (Sec 2)', city: 'Kharagpur / Kolkata' },
+  { id: 'MR-KOL', name: 'Metro Railway Kolkata — Metro Division (KMR)', zone: 'MR', defaultCorridor: 'Kolkata Metro Blue & Green Line Network', city: 'Kolkata' },
+
+  // North & NCR
+  { id: 'NR-DLI', name: 'Northern Railway — Delhi Division (DLI)', zone: 'NR', defaultCorridor: 'Delhi - Agra Semi High-Speed Corridor (Sec 4)', city: 'Delhi' },
+  { id: 'NCR-AGC', name: 'North Central Railway — Agra Division (AGC)', zone: 'NCR', defaultCorridor: 'Delhi - Agra Semi High-Speed Corridor (Sec 4)', city: 'Agra' },
+  { id: 'NCR-JHS', name: 'North Central Railway — Jhansi Division (JHS)', zone: 'NCR', defaultCorridor: 'Mathura - Jhansi - Bhopal Trunk Route', city: 'Jhansi' },
+  { id: 'NCR-PRYJ', name: 'North Central Railway — Prayagraj Division (PRYJ)', zone: 'NCR', defaultCorridor: 'New Delhi - Kanpur - Prayagraj Main Line', city: 'Prayagraj' },
+
+  // West & Central
+  { id: 'NWR-JP', name: 'North Western Railway — Jaipur Division (JP)', zone: 'NWR', defaultCorridor: 'Delhi - Jaipur - Ajmer Main Line', city: 'Jaipur' },
+  { id: 'CR-CSMT', name: 'Central Railway — Mumbai CR Division (CSMT)', zone: 'CR', defaultCorridor: 'Mumbai - Pune Expressway Section (Sec 12)', city: 'Mumbai' },
+  { id: 'CR-PUNE', name: 'Central Railway — Pune Division (PUNE)', zone: 'CR', defaultCorridor: 'Mumbai - Pune Expressway Section (Sec 12)', city: 'Pune' },
+  { id: 'CR-BSL', name: 'Central Railway — Bhusawal Division (BSL)', zone: 'CR', defaultCorridor: 'Igatpuri - Bhusawal Super-Dense Route', city: 'Bhusawal' },
+  { id: 'WR-MMCT', name: 'Western Railway — Mumbai WR Division (MMCT)', zone: 'WR', defaultCorridor: 'Mumbai Suburban - Ahmedabad Corridor', city: 'Mumbai' },
+  { id: 'WR-BRC', name: 'Western Railway — Vadodara Division (BRC)', zone: 'WR', defaultCorridor: 'Surat - Vadodara - Ahmedabad High Speed', city: 'Vadodara' },
+
+  // South & East Central
+  { id: 'SR-MAS', name: 'Southern Railway — Chennai Division (MAS)', zone: 'SR', defaultCorridor: 'Chennai - Arakkonam Fast Line (Sec 9)', city: 'Chennai' },
+  { id: 'SCR-SC', name: 'South Central Railway — Secunderabad Division (SC)', zone: 'SCR', defaultCorridor: 'Secunderabad - Kazipet Fast Corridor', city: 'Secunderabad' },
+  { id: 'SWR-SBC', name: 'South Western Railway — Bengaluru Division (SBC)', zone: 'SWR', defaultCorridor: 'Bengaluru - Mysuru Double Line Section', city: 'Bengaluru' },
+  { id: 'ECR-DNR', name: 'East Central Railway — Danapur Division (DNR)', zone: 'ECR', defaultCorridor: 'Pt. Deen Dayal Upadhyaya - Danapur Quad', city: 'Patna' },
+  { id: 'WCR-BPL', name: 'West Central Railway — Bhopal Division (BPL)', zone: 'WCR', defaultCorridor: 'Bhopal - Itarsi High Speed Route', city: 'Bhopal' }
 ]
 
 export const ASSET_CATEGORIES_BY_DEPT = {
@@ -158,95 +169,101 @@ export default function DefectPage() {
   }
 
   // Fetch live defects from backend/Supabase
+  // Fetch live defects from backend/Supabase
   const loadLiveDefects = async () => {
     try {
       setRefreshing(true)
       let rawList = null
-      let src = 'Live DB'
+      let src = 'Supabase Live DB'
+      let loaded = false
 
+      // 1. Primary: Fetch from Express backend
       try {
         const res = await api.get('/defects')
-        if (res && Array.isArray(res.defects) && res.defects.length > 0) {
+        if (res && Array.isArray(res.defects)) {
           rawList = res.defects
-          src = res.source || 'Live DB'
+          src = res.source || 'Supabase Live DB'
+          loaded = true
         }
       } catch (apiErr) {
         console.warn('[Defects API]: Fallback to direct Supabase fetch:', apiErr)
       }
 
-      // Fallback: If backend is spinning up or hosted as static site, query Supabase directly
-      if (!rawList || rawList.length === 0) {
+      // 2. Fallback: Direct query to Supabase if backend is unreachable
+      if (!loaded) {
         try {
           const { data, error } = await supabase
             .from('defects')
             .select('*')
-            .order('reported_at', { ascending: false })
+            .order('created_at', { ascending: false })
             .limit(100)
-          if (data && data.length > 0) {
+          if (!error && Array.isArray(data)) {
             rawList = data
-            src = 'Supabase Cloud'
+            src = 'Supabase Cloud (Direct)'
+            loaded = true
           }
         } catch (sbErr) {
           console.warn('[Supabase Direct Fetch Warning]:', sbErr)
         }
       }
 
-      if (rawList && rawList.length > 0) {
-        // Normalize defect objects
-        const formatted = rawList.map(d => {
-          const dept = d.department || 'Engineering'
-          const defaultPhoto = dept.includes('Signal') || dept.includes('S&T')
-            ? 'https://images.unsplash.com/photo-1541888946425-d0fbb18086f6?auto=format&fit=crop&w=800&q=80'
-            : dept.includes('Traction') || dept.includes('TRD')
-            ? 'https://images.unsplash.com/photo-1474487548417-781cb71495f3?auto=format&fit=crop&w=800&q=80'
-            : 'https://images.unsplash.com/photo-1517649763962-0c623266ddc0?auto=format&fit=crop&w=800&q=80'
+      const listToFormat = rawList || []
+      // Normalize defect objects
+      const formatted = listToFormat.map(d => {
+        const dept = d.department || 'Engineering'
+        const defaultPhoto = dept.includes('Signal') || dept.includes('S&T')
+          ? 'https://images.unsplash.com/photo-1541888946425-d0fbb18086f6?auto=format&fit=crop&w=800&q=80'
+          : dept.includes('Traction') || dept.includes('TRD')
+          ? 'https://images.unsplash.com/photo-1474487548417-781cb71495f3?auto=format&fit=crop&w=800&q=80'
+          : 'https://images.unsplash.com/photo-1517649763962-0c623266ddc0?auto=format&fit=crop&w=800&q=80'
 
-          // Extract division if available
-          const rawSection = d.corridor_name || d.corridorName || d.section || ''
-          let division = d.division || d.section_id || ''
-          if (!division && rawSection.includes('|')) {
-            division = rawSection.split('|')[0].trim()
-          }
-          if (!division) division = 'Northern Railway — Delhi Division (DLI)'
+        // Extract division if available
+        const rawSection = d.corridor_name || d.corridorName || d.section || ''
+        let division = d.division || d.section_id || ''
+        if (!division && rawSection.includes('|')) {
+          division = rawSection.split('|')[0].trim()
+        }
+        if (!division) division = 'Northern Railway — Delhi Division (DLI)'
 
-          let displaySection = rawSection
-          if (rawSection.includes('|')) {
-            displaySection = rawSection.split('|')[1].trim()
-          }
-          if (!displaySection) displaySection = 'Delhi - Agra Semi High-Speed Corridor'
+        let displaySection = rawSection
+        if (rawSection.includes('|')) {
+          displaySection = rawSection.split('|')[1].trim()
+        }
+        if (!displaySection) displaySection = 'Delhi - Agra Semi High-Speed Corridor'
 
-          const locationName = d.location || (displaySection.includes('—') ? displaySection.split('—')[1]?.trim() : displaySection)
+        const locationName = d.location || (displaySection.includes('—') ? displaySection.split('—')[1]?.trim() : displaySection)
 
-          return {
-            id: d.id,
-            division: division,
-            sourceSystem: d.source_system || d.sourceSystem || 'TMS',
-            department: dept,
-            assetType: d.defectCategory || d.defect_category || d.assetType || d.track_type || d.trackType || 'Track Infrastructure',
-            section: displaySection,
-            location: locationName,
-            rawSection: rawSection,
-            kmMarker: d.kmMarker || (d.km_start ? `KM ${d.km_start}` : 'KM 104.2'),
-            trackType: d.track_type || d.trackType || 'Up Main Line',
-            severity: d.severity || 'Medium',
-            status: d.status || 'Pending Block',
-            reportedDate: d.reportedDate || (d.reportedAt ? d.reportedAt.split('T')[0] : (d.reported_at ? d.reported_at.split('T')[0] : '2025-09-08')),
-            dueDate: d.dueDate || '2025-09-15',
-            overdueDays: d.overdue_days || d.overdueDays || 0,
-            photoUrl: d.photo_url || d.photoUrl || defaultPhoto,
-            aiTags: d.aiTags || [
-              division.split('—')[1]?.trim() || division,
-              d.track_type || 'Up Main Line',
-              d.defectCategory || d.defect_category || 'Track Infrastructure',
-              d.severity === 'Critical' ? 'Priority 1 (Critical)' : d.severity === 'High' ? 'Priority 2 (High)' : 'Routine'
-            ],
-            aiConfidence: d.ai_confidence || d.aiConfidence || '97.4%',
-            description: d.workRequired || d.work_required || d.description || 'Field defect recorded for corridor block planning.'
-          }
-        })
-        setDefects(formatted)
-        setDataSource(src)
-      }
+        return {
+          id: d.id,
+          division: division,
+          sourceSystem: d.source_system || d.sourceSystem || 'TMS',
+          department: dept,
+          assetType: d.defectCategory || d.defect_category || d.assetType || d.track_type || d.trackType || 'Track Infrastructure',
+          section: displaySection,
+          location: locationName,
+          rawSection: rawSection,
+          kmMarker: d.kmMarker || (d.km_start ? `KM ${d.km_start}` : 'KM 104.2'),
+          trackType: d.track_type || d.trackType || 'Up Main Line',
+          severity: d.severity || 'Medium',
+          status: d.status || 'Pending Block',
+          reportedDate: d.reportedDate || (d.reportedAt ? d.reportedAt.split('T')[0] : (d.reported_at ? d.reported_at.split('T')[0] : (d.created_at ? d.created_at.split('T')[0] : '2026-09-09'))),
+          dueDate: d.dueDate || '2026-09-16',
+          overdueDays: d.overdue_days || d.overdueDays || 0,
+          photoUrl: d.photo_url || d.photoUrl || defaultPhoto,
+          aiTags: d.aiTags || [
+            division.split('—')[1]?.trim() || division,
+            d.track_type || 'Up Main Line',
+            d.defectCategory || d.defect_category || 'Track Infrastructure',
+            d.severity === 'Critical' ? 'Priority 1 (Critical)' : d.severity === 'High' ? 'Priority 2 (High)' : 'Routine'
+          ],
+          aiConfidence: d.ai_confidence || d.aiConfidence || '97.4%',
+          description: d.workRequired || d.work_required || d.description || 'Field defect recorded for corridor block planning.'
+        }
+      })
+
+      // ALWAYS update state — even when empty (0 defects)
+      setDefects(formatted)
+      setDataSource(`${src} (${formatted.length} defect${formatted.length === 1 ? '' : 's'})`)
     } catch (err) {
       console.warn('Failed to load live defects:', err)
     } finally {
@@ -255,9 +272,94 @@ export default function DefectPage() {
     }
   }
 
+  // Realtime Supabase Subscription
   useEffect(() => {
     loadLiveDefects()
+
+    const channel = supabase
+      .channel('defects-sync-channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'defects' }, (payload) => {
+        console.log('[Supabase Realtime Defect Event]:', payload.eventType)
+        loadLiveDefects()
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [])
+
+  // Delete defect handler (wipes record from Supabase and photo from Cloudinary)
+  const handleDeleteDefect = async (id, e) => {
+    if (e) e.stopPropagation()
+    const targetDefect = defects.find(d => d.id === id) || (selectedDefect?.id === id ? selectedDefect : null)
+    const confirmDelete = window.confirm(`Permanently delete defect ${id} and its Cloudinary photo?`)
+    if (!confirmDelete) return
+
+    try {
+      // Optimistic UI update
+      setDefects(prev => prev.filter(d => d.id !== id))
+      if (selectedDefect?.id === id) setSelectedDefect(null)
+
+      let deleted = false
+      try {
+        await api.delete(`/defects/${id}`, { data: { photoUrl: targetDefect?.photoUrl } })
+        deleted = true
+      } catch (apiErr) {
+        console.warn('[API Delete Error]: Falling back to direct Supabase delete:', apiErr)
+      }
+
+      if (!deleted) {
+        await supabase.from('defects').delete().eq('id', id)
+        // Also call backend photo purge endpoint if available
+        if (targetDefect?.photoUrl) {
+          try {
+            await api.post('/defects/purge-photos', { photoUrls: [targetDefect.photoUrl] })
+          } catch {}
+        }
+      }
+
+      await loadLiveDefects()
+    } catch (err) {
+      console.error('Delete defect failed:', err)
+      alert('Could not delete defect: ' + (err.message || 'Error'))
+      loadLiveDefects()
+    }
+  }
+
+  // Clear all defects handler (wipes all records from Supabase and purges all photos from Cloudinary)
+  const handleClearAllDefects = async () => {
+    const confirmClear = window.confirm('⚠️ ARE YOU SURE? This will permanently delete ALL defects from Supabase and wipe their photos from Cloudinary.')
+    if (!confirmClear) return
+
+    try {
+      const allPhotoUrls = defects.map(d => d.photoUrl).filter(Boolean)
+
+      setDefects([])
+      if (selectedDefect) setSelectedDefect(null)
+
+      let cleared = false
+      try {
+        await api.delete('/defects', { data: { photoUrls: allPhotoUrls } })
+        cleared = true
+      } catch (apiErr) {
+        console.warn('[API Clear All Error]:', apiErr)
+      }
+
+      if (!cleared) {
+        await supabase.from('defects').delete().neq('id', '___PURGE_ALL___')
+        try {
+          await api.post('/defects/purge-photos', { photoUrls: allPhotoUrls })
+        } catch {}
+      }
+
+      await loadLiveDefects()
+    } catch (err) {
+      console.error('Clear all defects failed:', err)
+      alert('Could not clear database: ' + (err.message || 'Error'))
+      loadLiveDefects()
+    }
+  }
 
   // Filter logic including Division
   const filteredDefects = defects.filter(d => {
@@ -537,8 +639,8 @@ export default function DefectPage() {
             </p>
           </div>
 
-          {/* Quick upload trigger & Sync */}
-          <div style={{ display: 'flex', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+          {/* Quick upload trigger, Sync & Clear All */}
+          <div style={{ display: 'flex', gap: 'var(--space-md)', flexWrap: 'wrap', alignItems: 'center' }}>
             <button
               onClick={loadLiveDefects}
               disabled={refreshing}
@@ -546,8 +648,27 @@ export default function DefectPage() {
               style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.875rem' }}
             >
               <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
-              <span>{refreshing ? 'Syncing...' : 'Sync'}</span>
+              <span>{refreshing ? 'Syncing...' : 'Sync DB'}</span>
             </button>
+            {defects.length > 0 && (
+              <button
+                onClick={handleClearAllDefects}
+                className="btn btn-secondary"
+                style={{
+                  padding: '14px 18px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  fontSize: '0.875rem',
+                  color: 'var(--dept-conflict)',
+                  borderColor: 'rgba(201, 79, 79, 0.4)'
+                }}
+                title="Permanently wipe all defects from Supabase"
+              >
+                <Trash2 size={16} color="var(--dept-conflict)" />
+                <span>Clear All</span>
+              </button>
+            )}
             <button
               onClick={() => setActiveTab('upload')}
               className="btn btn-primary"
@@ -731,186 +852,274 @@ export default function DefectPage() {
       {/* Tab 1: Photo Grid with Grayscale -> Color Hover */}
       {activeTab === 'gallery' && (
         <div style={{
-          display: 'grid',
+          display: filteredDefects.length === 0 ? 'block' : 'grid',
           gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
           gap: 'var(--space-xl)',
           marginBottom: 'var(--space-2xl)'
         }}>
-          {filteredDefects.map((item, idx) => {
-            const sevStyle = getSeverityStyle(item.severity)
-            return (
-              <RevealWrapper key={item.id} delay={idx * 0.05}>
-                <div
-                  className="card"
-                  onClick={() => setSelectedDefect(item)}
-                  style={{
-                    padding: 0,
-                    cursor: 'pointer',
-                    position: 'relative'
-                  }}
+          {filteredDefects.length === 0 ? (
+            <div className="card" style={{
+              padding: 'var(--space-3xl) var(--space-xl)',
+              textAlign: 'center',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 'var(--space-md)',
+              background: 'var(--bg-secondary)',
+              border: '1px dashed var(--border)',
+              borderRadius: 'var(--radius-card)'
+            }}>
+              <div style={{
+                width: '64px',
+                height: '64px',
+                borderRadius: '50%',
+                background: 'rgba(109, 184, 123, 0.15)',
+                color: 'var(--status-healthy)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <CheckCircle2 size={32} />
+              </div>
+              <h3 style={{ fontSize: '1.4rem', fontWeight: 900 }}>No Track Defects Found</h3>
+              <p style={{ color: 'var(--text-muted)', maxWidth: '520px', fontSize: '0.9rem', lineHeight: 1.5 }}>
+                The Supabase database is completely synchronized and contains 0 active defects. All track corridors and assets are currently reported clear.
+              </p>
+              <div style={{ display: 'flex', gap: 'var(--space-md)', marginTop: 'var(--space-sm)' }}>
+                <button
+                  onClick={() => setActiveTab('upload')}
+                  className="btn btn-primary"
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
                 >
-                  {/* Photo in full natural inspection color */}
-                  <div style={{ height: '220px', overflow: 'hidden', position: 'relative', background: 'var(--bg-secondary)' }}>
-                    <img
-                      src={item.photoUrl}
-                      alt={item.assetType}
-                      loading="lazy"
-                      style={{
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover',
-                        transition: 'transform 0.4s var(--ease-premium)'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.transform = 'scale(1.06)'
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = 'scale(1)'
-                      }}
-                      onError={(e) => {
-                        e.currentTarget.src = 'https://images.unsplash.com/photo-1474487548417-781cb71495f3?auto=format&fit=crop&w=800&q=80'
-                      }}
-                    />
-                    {/* Cloudinary CDN indicator badge */}
-                    {item.photoUrl && item.photoUrl.includes('cloudinary.com') && (
+                  <Camera size={16} /> Upload Inspection Photo
+                </button>
+                <button
+                  onClick={loadLiveDefects}
+                  className="btn btn-secondary"
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                >
+                  <RefreshCw size={14} /> Refresh DB
+                </button>
+              </div>
+            </div>
+          ) : (
+            filteredDefects.map((item, idx) => {
+              const sevStyle = getSeverityStyle(item.severity)
+              return (
+                <RevealWrapper key={item.id} delay={idx * 0.05}>
+                  <div
+                    className="card"
+                    onClick={() => setSelectedDefect(item)}
+                    style={{
+                      padding: 0,
+                      cursor: 'pointer',
+                      position: 'relative'
+                    }}
+                  >
+                    {/* Photo in full natural inspection color */}
+                    <div style={{ height: '220px', overflow: 'hidden', position: 'relative', background: 'var(--bg-secondary)' }}>
+                      <img
+                        src={item.photoUrl}
+                        alt={item.assetType}
+                        loading="lazy"
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover',
+                          transition: 'transform 0.4s var(--ease-premium)'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = 'scale(1.06)'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = 'scale(1)'
+                        }}
+                        onError={(e) => {
+                          e.currentTarget.src = 'https://images.unsplash.com/photo-1474487548417-781cb71495f3?auto=format&fit=crop&w=800&q=80'
+                        }}
+                      />
+                      {/* Cloudinary CDN indicator badge */}
+                      {item.photoUrl && item.photoUrl.includes('cloudinary.com') && (
+                        <div style={{
+                          position: 'absolute',
+                          top: '12px',
+                          left: '12px',
+                          background: 'rgba(17, 23, 38, 0.85)',
+                          color: '#7dd3fc',
+                          border: '1px solid rgba(125, 211, 252, 0.4)',
+                          backdropFilter: 'blur(6px)',
+                          padding: '3px 8px',
+                          borderRadius: 'var(--radius-pill)',
+                          fontSize: '10px',
+                          fontWeight: 800,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}>
+                          <span>☁️ Cloudinary CDN</span>
+                        </div>
+                      )}
+                      {/* Severity Badge over image */}
                       <div style={{
                         position: 'absolute',
                         top: '12px',
-                        left: '12px',
-                        background: 'rgba(17, 23, 38, 0.85)',
-                        color: '#7dd3fc',
-                        border: '1px solid rgba(125, 211, 252, 0.4)',
-                        backdropFilter: 'blur(6px)',
-                        padding: '3px 8px',
+                        right: '12px',
+                        background: sevStyle.bg,
+                        color: sevStyle.color,
+                        border: `1px solid ${sevStyle.border}`,
+                        backdropFilter: 'blur(8px)',
+                        padding: '4px 10px',
                         borderRadius: 'var(--radius-pill)',
-                        fontSize: '10px',
-                        fontWeight: 800,
+                        fontSize: '11px',
+                        fontWeight: 800
+                      }}>
+                        {item.severity}
+                      </div>
+
+                      {/* Source System Badge */}
+                      <div style={{
+                        position: 'absolute',
+                        bottom: '12px',
+                        left: '12px',
+                        background: 'rgba(38,38,38,0.85)',
+                        color: '#fff',
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        fontSize: '11px',
+                        fontWeight: 700
+                      }}>
+                        {item.sourceSystem}
+                      </div>
+                    </div>
+
+                    {/* Body Content */}
+                    <div style={{ padding: 'var(--space-lg)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)' }}>
+                          {item.id} · {item.kmMarker}
+                        </span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--status-healthy)', fontWeight: 700 }}>
+                          AI Match: {item.aiConfidence}
+                        </span>
+                      </div>
+
+                      {/* Explicit Division Badge */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          fontSize: '0.72rem',
+                          fontWeight: 800,
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          background: 'rgba(228, 164, 189, 0.15)',
+                          color: 'var(--accent)',
+                          border: '1px solid rgba(228, 164, 189, 0.35)'
+                        }}>
+                          <MapPin size={11} /> {item.division}
+                        </span>
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          background: 'var(--bg-secondary)',
+                          color: 'var(--text-muted)',
+                          border: '1px solid var(--border)'
+                        }}>
+                          <Train size={11} /> {item.trackType}
+                        </span>
+                      </div>
+
+                      <h3 style={{ fontSize: '1.15rem', fontWeight: 800, marginBottom: '6px' }}>
+                        {item.assetType}
+                      </h3>
+                      <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 'var(--space-md)', lineHeight: 1.4 }}>
+                        <strong style={{ color: 'var(--text-primary)' }}>{item.location}</strong> · {item.section} ({item.kmMarker})
+                      </p>
+
+                      {/* AI Tags */}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: 'var(--space-md)' }}>
+                        {item.aiTags.map(tag => (
+                          <span
+                            key={tag}
+                            style={{
+                              fontSize: '10px',
+                              fontWeight: 700,
+                              padding: '3px 8px',
+                              borderRadius: 'var(--radius-pill)',
+                              background: 'var(--bg-secondary)',
+                              color: 'var(--text-primary)',
+                              border: '1px solid var(--border)'
+                            }}
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+
+                      <p style={{
+                        fontSize: '0.8rem',
+                        lineHeight: 1.5,
+                        color: 'var(--text-muted)',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                        marginBottom: 'var(--space-md)'
+                      }}>
+                        {item.description}
+                      </p>
+
+                      {/* Card Action Footer */}
+                      <div style={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '4px'
+                        justifyContent: 'space-between',
+                        paddingTop: 'var(--space-sm)',
+                        borderTop: '1px solid var(--border)'
                       }}>
-                        <span>☁️ Cloudinary CDN</span>
-                      </div>
-                    )}
-                    {/* Severity Badge over image */}
-                    <div style={{
-                      position: 'absolute',
-                      top: '12px',
-                      right: '12px',
-                      background: sevStyle.bg,
-                      color: sevStyle.color,
-                      border: `1px solid ${sevStyle.border}`,
-                      backdropFilter: 'blur(8px)',
-                      padding: '4px 10px',
-                      borderRadius: 'var(--radius-pill)',
-                      fontSize: '11px',
-                      fontWeight: 800
-                    }}>
-                      {item.severity}
-                    </div>
-
-                    {/* Source System Badge */}
-                    <div style={{
-                      position: 'absolute',
-                      bottom: '12px',
-                      left: '12px',
-                      background: 'rgba(38,38,38,0.85)',
-                      color: '#fff',
-                      padding: '4px 10px',
-                      borderRadius: '6px',
-                      fontSize: '11px',
-                      fontWeight: 700
-                    }}>
-                      {item.sourceSystem}
-                    </div>
-                  </div>
-
-                  {/* Body Content */}
-                  <div style={{ padding: 'var(--space-lg)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)' }}>
-                        {item.id} · {item.kmMarker}
-                      </span>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--status-healthy)', fontWeight: 700 }}>
-                        AI Match: {item.aiConfidence}
-                      </span>
-                    </div>
-
-                    {/* Explicit Division Badge */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px', flexWrap: 'wrap' }}>
-                      <span style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        fontSize: '0.72rem',
-                        fontWeight: 800,
-                        padding: '3px 8px',
-                        borderRadius: '6px',
-                        background: 'rgba(228, 164, 189, 0.15)',
-                        color: 'var(--accent)',
-                        border: '1px solid rgba(228, 164, 189, 0.35)'
-                      }}>
-                        <MapPin size={11} /> {item.division}
-                      </span>
-                      <span style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        fontSize: '0.72rem',
-                        fontWeight: 700,
-                        padding: '3px 8px',
-                        borderRadius: '6px',
-                        background: 'var(--bg-secondary)',
-                        color: 'var(--text-muted)',
-                        border: '1px solid var(--border)'
-                      }}>
-                        <Train size={11} /> {item.trackType}
-                      </span>
-                    </div>
-
-                    <h3 style={{ fontSize: '1.15rem', fontWeight: 800, marginBottom: '6px' }}>
-                      {item.assetType}
-                    </h3>
-                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 'var(--space-md)', lineHeight: 1.4 }}>
-                      <strong style={{ color: 'var(--text-primary)' }}>{item.location}</strong> · {item.section} ({item.kmMarker})
-                    </p>
-
-                    {/* AI Tags */}
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: 'var(--space-md)' }}>
-                      {item.aiTags.map(tag => (
-                        <span
-                          key={tag}
-                          style={{
-                            fontSize: '10px',
-                            fontWeight: 700,
-                            padding: '3px 8px',
-                            borderRadius: 'var(--radius-pill)',
-                            background: 'var(--bg-secondary)',
-                            color: 'var(--text-primary)',
-                            border: '1px solid var(--border)'
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setSelectedDefect(item)
                           }}
+                          className="btn btn-secondary"
+                          style={{ padding: '6px 14px', fontSize: '0.75rem', borderRadius: 'var(--radius-pill)' }}
                         >
-                          {tag}
-                        </span>
-                      ))}
+                          Inspect Details
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => handleDeleteDefect(item.id, e)}
+                          className="btn btn-secondary"
+                          style={{
+                            padding: '6px 12px',
+                            fontSize: '0.75rem',
+                            borderRadius: 'var(--radius-pill)',
+                            color: 'var(--dept-conflict)',
+                            borderColor: 'rgba(201, 79, 79, 0.35)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                          title="Permanently delete this defect from Supabase"
+                        >
+                          <Trash2 size={13} color="var(--dept-conflict)" />
+                          <span>Delete</span>
+                        </button>
+                      </div>
                     </div>
-
-                    <p style={{
-                      fontSize: '0.8rem',
-                      lineHeight: 1.5,
-                      color: 'var(--text-muted)',
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden'
-                    }}>
-                      {item.description}
-                    </p>
                   </div>
-                </div>
-              </RevealWrapper>
-            )
-          })}
+                </RevealWrapper>
+              )
+            })
+          )}
         </div>
       )}
 
@@ -931,68 +1140,98 @@ export default function DefectPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredDefects.map(d => {
-                  const sevStyle = getSeverityStyle(d.severity)
-                  return (
-                    <tr
-                      key={d.id}
-                      onClick={() => setSelectedDefect(d)}
-                      style={{ borderBottom: '1px solid rgba(0,0,0,0.06)', cursor: 'pointer', transition: 'background 0.2s' }}
-                      className="table-row-hover"
-                    >
-                      <td style={{ padding: '16px 8px', fontWeight: 800, fontSize: '0.85rem' }}>{d.id}</td>
-                      <td style={{ padding: '16px 8px' }}>
-                        <span style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          fontSize: '0.75rem',
-                          fontWeight: 800,
-                          padding: '3px 8px',
-                          borderRadius: '6px',
-                          background: 'rgba(228, 164, 189, 0.12)',
-                          color: 'var(--accent)',
-                          border: '1px solid rgba(228, 164, 189, 0.25)'
-                        }}>
-                          <MapPin size={11} /> {d.division}
-                        </span>
-                      </td>
-                      <td style={{ padding: '16px 8px' }}>
-                        <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>{d.assetType}</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{d.sourceSystem} ({d.department})</div>
-                      </td>
-                      <td style={{ padding: '16px 8px' }}>
-                        <div style={{ fontWeight: 600, fontSize: '0.82rem' }}>{d.location}</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{d.section} · {d.kmMarker} ({d.trackType})</div>
-                      </td>
-                      <td style={{ padding: '16px 8px' }}>
-                        <span style={{
-                          background: sevStyle.bg,
-                          color: sevStyle.color,
-                          padding: '4px 10px',
-                          borderRadius: 'var(--radius-pill)',
-                          fontSize: '11px',
-                          fontWeight: 800
-                        }}>
-                          {d.severity}
-                        </span>
-                      </td>
-                      <td style={{ padding: '16px 8px', fontSize: '0.85rem', fontWeight: 600 }}>{d.status}</td>
-                      <td style={{ padding: '16px 8px' }}>
-                        <button
-                          className="btn btn-secondary"
-                          style={{ padding: '6px 14px', fontSize: '0.75rem', borderRadius: 'var(--radius-pill)' }}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setSelectedDefect(d)
-                          }}
-                        >
-                          Inspect
-                        </button>
-                      </td>
-                    </tr>
-                  )
-                })}
+                {filteredDefects.length === 0 ? (
+                  <tr>
+                    <td colSpan="7" style={{ textAlign: 'center', padding: '48px 16px', color: 'var(--text-muted)' }}>
+                      <CheckCircle2 size={32} color="var(--status-healthy)" style={{ margin: '0 auto 12px' }} />
+                      <div style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--text-primary)', marginBottom: '4px' }}>
+                        No Track Defects in Database
+                      </div>
+                      <div style={{ fontSize: '0.85rem' }}>
+                        The Supabase database is completely synchronized with 0 active defects.
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredDefects.map(d => {
+                    const sevStyle = getSeverityStyle(d.severity)
+                    return (
+                      <tr
+                        key={d.id}
+                        onClick={() => setSelectedDefect(d)}
+                        style={{ borderBottom: '1px solid rgba(0,0,0,0.06)', cursor: 'pointer', transition: 'background 0.2s' }}
+                        className="table-row-hover"
+                      >
+                        <td style={{ padding: '16px 8px', fontWeight: 800, fontSize: '0.85rem' }}>{d.id}</td>
+                        <td style={{ padding: '16px 8px' }}>
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            fontSize: '0.75rem',
+                            fontWeight: 800,
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            background: 'rgba(228, 164, 189, 0.12)',
+                            color: 'var(--accent)',
+                            border: '1px solid rgba(228, 164, 189, 0.25)'
+                          }}>
+                            <MapPin size={11} /> {d.division}
+                          </span>
+                        </td>
+                        <td style={{ padding: '16px 8px' }}>
+                          <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>{d.assetType}</div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{d.sourceSystem} ({d.department})</div>
+                        </td>
+                        <td style={{ padding: '16px 8px' }}>
+                          <div style={{ fontWeight: 600, fontSize: '0.82rem' }}>{d.location}</div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{d.section} · {d.kmMarker} ({d.trackType})</div>
+                        </td>
+                        <td style={{ padding: '16px 8px' }}>
+                          <span style={{
+                            background: sevStyle.bg,
+                            color: sevStyle.color,
+                            padding: '4px 10px',
+                            borderRadius: 'var(--radius-pill)',
+                            fontSize: '11px',
+                            fontWeight: 800
+                          }}>
+                            {d.severity}
+                          </span>
+                        </td>
+                        <td style={{ padding: '16px 8px', fontSize: '0.85rem', fontWeight: 600 }}>{d.status}</td>
+                        <td style={{ padding: '16px 8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <button
+                              className="btn btn-secondary"
+                              style={{ padding: '6px 14px', fontSize: '0.75rem', borderRadius: 'var(--radius-pill)' }}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setSelectedDefect(d)
+                              }}
+                            >
+                              Inspect
+                            </button>
+                            <button
+                              className="btn btn-secondary"
+                              style={{
+                                padding: '6px 10px',
+                                fontSize: '0.75rem',
+                                borderRadius: 'var(--radius-pill)',
+                                color: 'var(--dept-conflict)',
+                                borderColor: 'rgba(201, 79, 79, 0.3)'
+                              }}
+                              onClick={(e) => handleDeleteDefect(d.id, e)}
+                              title="Delete defect"
+                            >
+                              <Trash2 size={13} color="var(--dept-conflict)" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })
+                )}
               </tbody>
             </table>
           </div>
@@ -1205,11 +1444,15 @@ export default function DefectPage() {
                     Quick Zone / Div:
                   </span>
                   {[
+                    { id: 'ER-SDAH', label: 'Sealdah (SDAH)', name: 'Eastern Railway — Sealdah Division (SDAH)' },
+                    { id: 'ER-HWH', label: 'Howrah (HWH)', name: 'Eastern Railway — Howrah Division (HWH)' },
+                    { id: 'SER-KGP', label: 'Kharagpur (KGP)', name: 'South Eastern Railway — Kharagpur Division (KGP)' },
+                    { id: 'NWR-JP', label: 'Jaipur (JP)', name: 'North Western Railway — Jaipur Division (JP)' },
                     { id: 'NR-DLI', label: 'Delhi (DLI)', name: 'Northern Railway — Delhi Division (DLI)' },
                     { id: 'NCR-AGC', label: 'Agra (AGC)', name: 'North Central Railway — Agra Division (AGC)' },
                     { id: 'CR-CSMT', label: 'Mumbai CR (CSMT)', name: 'Central Railway — Mumbai CR Division (CSMT)' },
                     { id: 'CR-PUNE', label: 'Pune (PUNE)', name: 'Central Railway — Pune Division (PUNE)' },
-                    { id: 'ER-HWH', label: 'Howrah (HWH)', name: 'Eastern Railway — Howrah Division (HWH)' },
+                    { id: 'WR-BRC', label: 'Vadodara (BRC)', name: 'Western Railway — Vadodara Division (BRC)' },
                     { id: 'SR-MAS', label: 'Chennai (MAS)', name: 'Southern Railway — Chennai Division (MAS)' },
                     { id: 'SWR-SBC', label: 'Bengaluru (SBC)', name: 'South Western Railway — Bengaluru Division (SBC)' },
                     { id: 'SCR-SC', label: 'Secunderabad (SC)', name: 'South Central Railway — Secunderabad Division (SC)' }
@@ -1606,23 +1849,42 @@ export default function DefectPage() {
               </div>
 
               {/* Action buttons */}
-              <div style={{ display: 'flex', gap: 'var(--space-md)', justifyContent: 'flex-end' }}>
-                <button onClick={() => setSelectedDefect(null)} className="btn btn-secondary">
-                  Close
-                </button>
+              <div style={{ display: 'flex', gap: 'var(--space-md)', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
                 <button
                   type="button"
-                  onClick={() => {
-                    const defectId = selectedDefect.id
-                    setSelectedDefect(null)
-                    navigate(`/plans?scheduleDefect=${defectId}`)
+                  onClick={() => handleDeleteDefect(selectedDefect.id)}
+                  className="btn btn-secondary"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    color: 'var(--dept-conflict)',
+                    borderColor: 'rgba(201, 79, 79, 0.4)',
+                    marginRight: 'auto'
                   }}
-                  className="btn btn-primary"
-                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                  title="Permanently remove this defect from Supabase"
                 >
-                  <Zap size={14} />
-                  <span>Schedule Priority Block</span>
+                  <Trash2 size={14} color="var(--dept-conflict)" />
+                  <span>Delete Defect</span>
                 </button>
+                <div style={{ display: 'flex', gap: 'var(--space-md)' }}>
+                  <button onClick={() => setSelectedDefect(null)} className="btn btn-secondary">
+                    Close
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const defectId = selectedDefect.id
+                      setSelectedDefect(null)
+                      navigate(`/plans?scheduleDefect=${defectId}`)
+                    }}
+                    className="btn btn-primary"
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    <Zap size={14} />
+                    <span>Schedule Priority Block</span>
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>
