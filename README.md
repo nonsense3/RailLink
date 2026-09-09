@@ -14,9 +14,9 @@ RailLink is an intelligent corridor block planning, timetable deconfliction, and
 
 ---
 
-## 🚀 Deployment to Vercel
+## 🚀 Deploying to Render (render.com)
 
-RailLink is configured for seamless deployment on **Vercel**.
+RailLink is configured for full-stack deployment on **Render** as a unified Web Service (Express API + Vite React Frontend) with zero CORS overhead.
 
 ### Step 1: Push Repository to GitHub
 Ensure the project is pushed to your GitHub repository:
@@ -26,62 +26,73 @@ git branch -M main
 git push -u origin main
 ```
 
-### Step 2: Import into Vercel
-1. Go to [Vercel Dashboard](https://vercel.com/new).
-2. Connect your GitHub account and import **`RailLink`**.
-3. Under **Project Settings**:
-   - **Framework Preset**: Vite
-   - **Root Directory**: `./` (leave default, or set to `client` if deploying frontend only)
-   - **Build Command**: `cd client && npm install && npm run build`
-   - **Output Directory**: `client/dist`
+### Step 2: Create Web Service on Render
+1. Log in to your [Render Dashboard](https://dashboard.render.com).
+2. Click **New +** and select **Web Service**.
+3. Choose **Build and deploy from a Git repository** and connect your **`RailLink`** repository.
+4. Configure the service settings:
+   - **Name**: `raillink` (or any name you choose)
+   - **Region**: Closest to your users (e.g., Singapore / Frankfurt)
+   - **Branch**: `main`
+   - **Root Directory**: Leave blank (defaults to root `.`)
+   - **Environment**: `Node`
+   - **Build Command**: `npm run build`
+   - **Start Command**: `npm start`
+   - **Instance Type**: `Free`
 
-### Step 3: Configure Environment Variables in Vercel
-Add the following in **Vercel Settings > Environment Variables**:
+### Step 3: Add Environment Variables in Render
+In the **Environment** section of your Render Web Service settings, add the following key-value pairs:
 
-| Variable Name | Description | Example / Source |
+| Key | Description | Source / Where to get |
 |---|---|---|
-| `VITE_API_URL` | API endpoint for frontend | `/api` |
-| `VITE_SUPABASE_URL` | Supabase Project URL | `https://xxxx.supabase.co` |
-| `VITE_SUPABASE_ANON_KEY` | Supabase Public Anon Key | From Supabase Project Settings > API |
-| `VITE_MAPTILER_API_KEY` | MapTiler Map Tiles Key | From [MapTiler Cloud](https://cloud.maptiler.com) |
-| `VITE_GEMINI_API_KEY` | Google Gemini AI Key | From [Google AI Studio](https://aistudio.google.com) |
-| `SUPABASE_URL` | Backend Supabase URL | `https://xxxx.supabase.co` |
-| `SUPABASE_ANON_KEY` | Backend Supabase Anon Key | From Supabase Project Settings > API |
-| `SUPABASE_SERVICE_ROLE_KEY` | Backend Supabase Secret Key | From Supabase Project Settings > API |
-| `CLOUDINARY_CLOUD_NAME` | Cloudinary Cloud Name | From [Cloudinary Dashboard](https://cloudinary.com) |
-| `CLOUDINARY_API_KEY` | Cloudinary API Key | From Cloudinary Dashboard |
-| `CLOUDINARY_API_SECRET` | Cloudinary API Secret | From Cloudinary Dashboard |
-| `GEMINI_API_KEY` | Gemini AI Key for Backend | From [Google AI Studio](https://aistudio.google.com) |
+| `PORT` | Service Port | `10000` (Render default) |
+| `NODE_ENV` | Runtime Environment | `production` |
+| `VITE_API_URL` | Frontend API URL | `/api` |
+| `SUPABASE_URL` | Supabase Project URL | Supabase Dashboard > Project Settings > API |
+| `SUPABASE_ANON_KEY` | Supabase Public Anon Key | Supabase Dashboard > Project Settings > API |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase Service Role Secret Key | Supabase Dashboard > Project Settings > API |
+| `VITE_SUPABASE_URL` | Supabase Project URL (Client) | Same as `SUPABASE_URL` |
+| `VITE_SUPABASE_ANON_KEY` | Supabase Anon Key (Client) | Same as `SUPABASE_ANON_KEY` |
+| `CLOUDINARY_CLOUD_NAME` | Cloudinary Cloud Name | [Cloudinary Dashboard](https://cloudinary.com) |
+| `CLOUDINARY_API_KEY` | Cloudinary API Key | Cloudinary Dashboard |
+| `CLOUDINARY_API_SECRET` | Cloudinary API Secret | Cloudinary Dashboard |
+| `RAPIDAPI_KEY` | Indian Railways IRCTC API Key | RapidAPI Dashboard |
+| `RAPIDAPI_HOST` | RapidAPI IRCTC Host | `indian-railway-irctc.p.rapidapi.com` |
+| `MAPTILER_API_KEY` | MapTiler Map Vector / Satellite Key | [cloud.maptiler.com](https://cloud.maptiler.com) |
+| `VITE_MAPTILER_API_KEY` | MapTiler Key for Frontend | Same as `MAPTILER_API_KEY` |
+| `GEMINI_API_KEY` | Google Gemini AI Key (Backend) | [aistudio.google.com](https://aistudio.google.com) |
+| `VITE_GEMINI_API_KEY` | Google Gemini AI Key (Frontend) | Same as `GEMINI_API_KEY` |
+
+5. Click **Create Web Service**. Render will automatically build the client, install server dependencies, and start the application.
 
 ---
 
 ## 🗄️ Setting Up Supabase Database
 
-1. Sign up / log in to [Supabase](https://supabase.com).
-2. Create a new project (e.g., `RailLink-db`).
-3. In the left navigation, click on **SQL Editor**.
+1. Log in to [Supabase](https://supabase.com).
+2. Create or open your project.
+3. In the left navigation, click **SQL Editor**.
 4. Open the file `SETUP_SUPABASE_ALL_IN_ONE.sql` from this repository.
-5. Copy the entire SQL content and paste it into the Supabase SQL Editor.
+5. Copy the entire SQL script and paste it into the Supabase SQL Editor.
 6. Click **Run**. This will:
    - Create tables: `defects`, `block_plans`, `corridors`, `profiles`.
    - Seed sample corridors, defects, and block schedules.
    - Configure public read/write Row Level Security (RLS) policies.
 7. Go to **Project Settings > API**:
-   - Copy the **Project URL** and assign it to `SUPABASE_URL` / `VITE_SUPABASE_URL`.
-   - Copy the **anon public key** and assign it to `SUPABASE_ANON_KEY` / `VITE_SUPABASE_ANON_KEY`.
-   - Copy the **service_role secret key** and assign it to `SUPABASE_SERVICE_ROLE_KEY`.
+   - Copy **Project URL** ➔ `SUPABASE_URL` & `VITE_SUPABASE_URL`
+   - Copy **anon public** key ➔ `SUPABASE_ANON_KEY` & `VITE_SUPABASE_ANON_KEY`
+   - Copy **service_role secret** key ➔ `SUPABASE_SERVICE_ROLE_KEY`
 
 ---
 
 ## ☁️ Setting Up Cloudinary (Photo Inspections)
 
-1. Sign up / log in to [Cloudinary](https://cloudinary.com).
-2. Go to your **Cloudinary Dashboard**.
-3. Locate:
-   - **Cloud Name** -> set as `CLOUDINARY_CLOUD_NAME`
-   - **API Key** -> set as `CLOUDINARY_API_KEY`
-   - **API Secret** -> set as `CLOUDINARY_API_SECRET`
-4. When field engineers upload photos of rail defects, RailLink securely uploads them to your Cloudinary storage and records the image URL in Supabase.
+1. Log in to [Cloudinary](https://cloudinary.com).
+2. On your **Dashboard**, copy:
+   - **Cloud Name** ➔ `CLOUDINARY_CLOUD_NAME`
+   - **API Key** ➔ `CLOUDINARY_API_KEY`
+   - **API Secret** ➔ `CLOUDINARY_API_SECRET`
+3. When field inspectors upload photos of rail defects, RailLink securely streams them to your Cloudinary storage and records the image URL in Supabase.
 
 ---
 
@@ -94,8 +105,8 @@ cd RailLink
 ```
 
 ### 2. Configure Environment Files
-- Copy `server/.env.example` to `server/.env` and fill in credentials.
-- Copy `client/.env.example` to `client/.env` and fill in credentials.
+- Create `server/.env` with your Supabase, Cloudinary, and AI keys.
+- Create `client/.env` with your frontend keys (`VITE_API_URL=http://localhost:3001/api`, etc.).
 
 ### 3. Run Backend Server
 ```bash

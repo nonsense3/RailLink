@@ -1,7 +1,6 @@
 # Environment Files
 .env
 .env.*
-!.env.example
 *.env
 *.env.local
 

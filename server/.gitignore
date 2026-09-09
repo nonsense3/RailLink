@@ -1,7 +1,6 @@
 # Server Environment & Sensitive Config
 .env
 .env.*
-!.env.example
 *.env
 
 # Dependencies

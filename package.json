@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "cd client && npm install && npm run build",
+    "build": "npm --prefix server install && npm --prefix client install && npm --prefix client run build",
     "client:dev": "npm --prefix client run dev",
     "server:dev": "npm --prefix server run dev",
     "start": "node server/src/app.js"

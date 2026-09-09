@@ -1,6 +1,9 @@
 import express from 'express'
 import cors from 'cors'
 import morgan from 'morgan'
+import path from 'path'
+import fs from 'fs'
+import { fileURLToPath } from 'url'
 import { config } from './config/env.js'
 
 import authRouter from './routes/auth.js'
@@ -45,6 +48,19 @@ app.use('/api/sim', simulatorsRouter)
 app.use('/api/railway', railwayRouter)
 app.use('/api/upload', uploadRouter)
 app.use('/api/ai', aiRouter)
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+
+// Serve built frontend assets if present (Render / Monorepo deployment)
+const clientDistPath = path.resolve(__dirname, '../../client/dist')
+if (fs.existsSync(clientDistPath)) {
+  app.use(express.static(clientDistPath))
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) return next()
+    res.sendFile(path.join(clientDistPath, 'index.html'))
+  })
+}
 
 // Error handling middleware
 app.use((err, req, res, next) => {

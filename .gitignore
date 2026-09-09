@@ -1,7 +1,6 @@
 # Environment & Sensitive Config Files (NEVER COMMIT TO GITHUB)
 .env
 .env.*
-!.env.example
 *.env
 *.env.local
 *.env.development.local
