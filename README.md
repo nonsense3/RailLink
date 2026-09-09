@@ -1,15 +1,15 @@
+<img width="2048" height="768" alt="ChatGPT Image Sep 9, 2026, 12_22_16 PM" src="https://github.com/user-attachments/assets/76fdd7a2-ce5b-4f51-be63-7a5811c484d3" />
+<h1 align="center">🚆 RAILLINK</h1>
+<h3 align="center">AI-Powered Automatic Block Planning & Defect Management for Indian Railways</h3>
 <p align="center">
+  <p align="center">
+  <strong>Smarter maintenance. Safer tracks. Faster decisions.</strong>
+</p>
   <img src="https://img.shields.io/badge/RailLink-AI%20Powered-blue?style=for-the-badge&logo=train&logoColor=white" alt="RailLink"/>
   <img src="https://img.shields.io/badge/Indian%20Railways-Block%20Planning-orange?style=for-the-badge" alt="Indian Railways"/>
   <img src="https://img.shields.io/badge/Status-Live-brightgreen?style=for-the-badge" alt="Status"/>
 </p>
 
-<h1 align="center">🚆 RailLink</h1>
-<h3 align="center">AI-Powered Automatic Block Planning & Defect Management for Indian Railways</h3>
-
-<p align="center">
-  <strong>Smarter maintenance. Safer tracks. Faster decisions.</strong>
-</p>
 
 ---
 
