@@ -5,6 +5,7 @@ import api from '../lib/api'
 import LocationAutocomplete from '../components/ui/LocationAutocomplete'
 import InteractiveLocationMapPicker from '../components/ui/InteractiveLocationMapPicker'
 import { RAILWAY_STATIONS } from '../lib/railwayLocations'
+import { compressImage } from '../lib/imageCompressor'
 import {
   Wrench,
   AlertTriangle,
@@ -236,17 +237,24 @@ export default function DefectPage() {
     return matchDept && matchSev && matchDiv && matchSearch
   })
 
-  // Handle Photo selection from Desktop/Mobile
-  const handlePhotoSelect = (e) => {
+  // Handle Photo selection from Desktop/Mobile with automatic client-side compression
+  const handlePhotoSelect = async (e) => {
     const file = e.target.files?.[0]
     if (file) {
       setPhotoError(null)
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        setSelectedImageBase64(reader.result)
-        setSelectedImagePreview(reader.result)
+      try {
+        const compressed = await compressImage(file)
+        setSelectedImageBase64(compressed)
+        setSelectedImagePreview(compressed)
+      } catch (err) {
+        console.warn('Image compression fallback to raw base64:', err)
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          setSelectedImageBase64(reader.result)
+          setSelectedImagePreview(reader.result)
+        }
+        reader.readAsDataURL(file)
       }
-      reader.readAsDataURL(file)
     }
   }
 
@@ -266,15 +274,16 @@ export default function DefectPage() {
     try {
       let finalPhotoUrl = ''
 
-      // Upload field photo to Cloudinary
+      // Upload field photo to backend (Cloudinary or persistent storage)
       const uploadRes = await api.post('/upload/photo', {
         image: selectedImageBase64,
         folder: 'RailLink_field_inspections'
       })
+
       if (uploadRes && uploadRes.url) {
         finalPhotoUrl = uploadRes.url
       } else {
-        throw new Error('Could not upload photo to media storage')
+        throw new Error('Server returned empty image URL')
       }
 
       // Save new defect to backend API (and Supabase)
@@ -307,7 +316,8 @@ export default function DefectPage() {
     } catch (err) {
       console.error('Upload defect failed:', err)
       setIsUploading(false)
-      alert(`Upload failed: ${err.message || err}`)
+      const errorDetail = err?.response?.data?.error || err?.error || err?.message || (typeof err === 'string' ? err : 'Upload failed. Check network or server logs.')
+      alert(`Defect submission failed: ${errorDetail}`)
     }
   }
 

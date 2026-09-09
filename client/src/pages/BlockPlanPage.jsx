@@ -50,6 +50,7 @@ import LocationAutocomplete from '../components/ui/LocationAutocomplete'
 import InteractiveLocationMapPicker from '../components/ui/InteractiveLocationMapPicker'
 import { INDIAN_RAILWAY_DIVISIONS } from './DefectPage'
 import { RAILWAY_STATIONS } from '../lib/railwayLocations'
+import { compressImage } from '../lib/imageCompressor'
 
 const departmentsList = [
   { name: 'All Departments', code: 'ALL', color: 'var(--text-primary)' },
@@ -202,17 +203,24 @@ export default function BlockPlanPage() {
     return { total, conflicts, scheduled, trainsProtected, avgEfficiency, openDefects: defectsList.length }
   }, [plans, defectsList])
 
-  // Handle Photo File Pick
-  const handleDefectPhotoSelect = (e) => {
+  // Handle Photo File Pick with compression
+  const handleDefectPhotoSelect = async (e) => {
     const file = e.target.files?.[0]
     if (file) {
       setDefectPhotoError(null)
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        setDefectImageBase64(reader.result)
-        setDefectImagePreview(reader.result)
+      try {
+        const compressed = await compressImage(file)
+        setDefectImageBase64(compressed)
+        setDefectImagePreview(compressed)
+      } catch (err) {
+        console.warn('Image compression fallback:', err)
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          setDefectImageBase64(reader.result)
+          setDefectImagePreview(reader.result)
+        }
+        reader.readAsDataURL(file)
       }
-      reader.readAsDataURL(file)
     }
   }
 
@@ -234,11 +242,15 @@ export default function BlockPlanPage() {
       const uploadRes = await api.post('/upload/photo', {
         image: defectImageBase64,
         folder: 'RailLink_defects'
-      }).catch(() => null)
+      }).catch(err => {
+        console.warn('Upload error from API:', err)
+        return null
+      })
+
       if (uploadRes?.url) {
         finalPhotoUrl = uploadRes.url
       } else {
-        throw new Error('Failed to upload defect photo')
+        throw new Error('Failed to upload defect photo to storage')
       }
 
       const newDefectRes = await api.post('/defects', {
