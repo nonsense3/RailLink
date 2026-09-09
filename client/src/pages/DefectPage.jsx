@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import RevealWrapper from '../components/layout/RevealWrapper'
 import api, { wakeUpServer } from '../lib/api'
 import { supabase } from '../lib/supabase'
+import { getConfig, fetchServerConfig } from '../lib/config'
 import LocationAutocomplete from '../components/ui/LocationAutocomplete'
 import InteractiveLocationMapPicker from '../components/ui/InteractiveLocationMapPicker'
 import { RAILWAY_STATIONS } from '../lib/railwayLocations'
@@ -317,9 +318,10 @@ export default function DefectPage() {
 
       let finalPhotoUrl = ''
 
-      // 1. Direct Cloudinary upload via unsigned preset (instant CDN URL, works even on Render static hosting)
-      const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'eqrpvaua'
-      const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || 'raillink_uploads'
+      // 1. Direct Cloudinary upload via unsigned preset (loaded directly from backend /api/config & server/.env)
+      const serverConfig = (await fetchServerConfig()) || getConfig()
+      const cloudName = serverConfig.cloudinary?.cloudName || 'eqrpvaua'
+      const uploadPreset = serverConfig.cloudinary?.uploadPreset || 'raillink_uploads'
 
       try {
         const formData = new FormData()

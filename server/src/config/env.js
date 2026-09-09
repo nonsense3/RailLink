@@ -15,13 +15,14 @@ export const config = {
   nodeEnv: process.env.NODE_ENV || 'development',
   supabase: {
     url: process.env.SUPABASE_URL || 'https://cgelhhbquhzeynzwjeub.supabase.co',
-    anonKey: process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNnZWxoaGJxdWh6ZXluendqZXViIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg4NDkyMDcsImV4cCI6MjEwNDQyNTIwN30.AB3F3oPl2DEsBvQzqREZZtRtj3cOGhINNmCYLtd6-nY',
+    anonKey: process.env.SUPABASE_ANON_KEY || '',
     serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY || ''
   },
   cloudinary: {
     cloudName: process.env.CLOUDINARY_CLOUD_NAME || 'eqrpvaua',
-    apiKey: process.env.CLOUDINARY_API_KEY || '713827524856783',
-    apiSecret: process.env.CLOUDINARY_API_SECRET || 'x-78D9xj3qDimqNDTLbFxzBlQ-k'
+    apiKey: process.env.CLOUDINARY_API_KEY || '',
+    apiSecret: process.env.CLOUDINARY_API_SECRET || '',
+    uploadPreset: process.env.CLOUDINARY_UPLOAD_PRESET || 'raillink_uploads'
   },
   mlServiceUrl: process.env.ML_SERVICE_URL || 'http://localhost:8000',
   rapidApi: {
@@ -35,3 +36,4 @@ export const config = {
     apiKey: process.env.GEMINI_API_KEY || ''
   }
 }
+

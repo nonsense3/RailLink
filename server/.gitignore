@@ -1,7 +1,8 @@
-# Server Environment & Sensitive Config
 .env
 .env.*
 *.env
+!.env.example
+
 
 # Dependencies
 node_modules/

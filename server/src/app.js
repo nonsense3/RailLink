@@ -17,6 +17,7 @@ import simulatorsRouter from './routes/simulators.js'
 import railwayRouter from './routes/railway.js'
 import uploadRouter from './routes/upload.js'
 import aiRouter from './routes/ai.js'
+import configRouter from './routes/config.js'
 
 const app = express()
 
@@ -49,6 +50,8 @@ app.use('/api/sim', simulatorsRouter)
 app.use('/api/railway', railwayRouter)
 app.use('/api/upload', uploadRouter)
 app.use('/api/ai', aiRouter)
+app.use('/api/config', configRouter)
+
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
