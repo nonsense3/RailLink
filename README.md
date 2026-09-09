@@ -137,37 +137,6 @@ cd client && npm install && cd ..
 cd server && npm install && cd ..
 ```
 
-### 3. Set up environment variables
-
-**`server/.env`**
-```env
-PORT=5000
-NODE_ENV=development
-SUPABASE_URL=your_supabase_url
-SUPABASE_ANON_KEY=your_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-CLOUDINARY_CLOUD_NAME=your_cloud_name
-CLOUDINARY_API_KEY=your_api_key
-CLOUDINARY_API_SECRET=your_api_secret
-GEMINI_API_KEY=your_gemini_key
-MAPTILER_API_KEY=your_maptiler_key
-```
-
-**`client/.env`**
-```env
-VITE_API_URL=http://localhost:5000/api
-VITE_SUPABASE_URL=your_supabase_url
-VITE_SUPABASE_ANON_KEY=your_anon_key
-VITE_MAPTILER_API_KEY=your_maptiler_key
-VITE_GEMINI_API_KEY=your_gemini_key
-```
-
-### 4. Set up the database
-Run the SQL file in your Supabase SQL editor:
-```
-SETUP_SUPABASE_ALL_IN_ONE.sql
-```
-
 ### 5. Start development
 ```bash
 npm run dev
