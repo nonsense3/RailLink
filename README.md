@@ -163,6 +163,12 @@ The Express server serves both the API and the built React SPA — no separate s
 
 ---
 
+## 📜 Code of Conduct
+
+Please read our [Code of Conduct](CODE_OF_CONDUCT.md) to understand our expectations for community behavior and interactions.
+
+---
+
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
