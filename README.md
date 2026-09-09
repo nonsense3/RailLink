@@ -163,6 +163,12 @@ The Express server serves both the API and the built React SPA — no separate s
 
 ---
 
+## 🔒 Security
+
+For information about reporting security vulnerabilities, please refer to our [Security Policy](SECURITY.md).
+
+---
+
 ## 📜 Code of Conduct
 
 Please read our [Code of Conduct](CODE_OF_CONDUCT.md) to understand our expectations for community behavior and interactions.
