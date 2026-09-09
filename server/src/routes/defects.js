@@ -47,6 +47,10 @@ router.post('/', async (req, res) => {
     photoUrl
   } = req.body
 
+  if (!photoUrl) {
+    return res.status(400).json({ error: 'Inspection photo is mandatory. Field defects cannot be logged without an inspection photo.' })
+  }
+
   const selectedDivision = division || 'Northern Railway — Delhi Division (DLI)'
   const specificLocation = location || 'Mathura Section'
   const corridorSection = section || 'Delhi - Agra Semi High-Speed Corridor'

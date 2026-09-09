@@ -91,6 +91,7 @@ export default function BlockPlanPage() {
   const [defectFormWork, setDefectFormWork] = useState('Deep screening required for track ballast & weld stress relief.')
   const [defectImageBase64, setDefectImageBase64] = useState(null)
   const [defectImagePreview, setDefectImagePreview] = useState(null)
+  const [defectPhotoError, setDefectPhotoError] = useState(null)
   const [isSubmittingDefect, setIsSubmittingDefect] = useState(false)
   const defectFileInputRef = useRef(null)
 
@@ -204,6 +205,7 @@ export default function BlockPlanPage() {
   const handleDefectPhotoSelect = (e) => {
     const file = e.target.files?.[0]
     if (file) {
+      setDefectPhotoError(null)
       const reader = new FileReader()
       reader.onloadend = () => {
         setDefectImageBase64(reader.result)
@@ -216,18 +218,26 @@ export default function BlockPlanPage() {
   // Handle Defect Submission directly from Block Plan
   const handleSubmitDefectInBlockPlan = async (e) => {
     e.preventDefault()
-    setIsSubmittingDefect(true)
-    try {
-      let finalPhotoUrl = 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=800&q=80'
 
-      if (defectImageBase64) {
-        const uploadRes = await api.post('/upload/photo', {
-          image: defectImageBase64,
-          folder: 'RailLink_defects'
-        }).catch(() => null)
-        if (uploadRes?.url) {
-          finalPhotoUrl = uploadRes.url
-        }
+    // STRICT VALIDATION: Photo upload is mandatory
+    if (!defectImageBase64) {
+      setDefectPhotoError('Inspection photo is mandatory! Please upload a photo of the defect before submitting.')
+      return
+    }
+
+    setIsSubmittingDefect(true)
+    setDefectPhotoError(null)
+    try {
+      let finalPhotoUrl = ''
+
+      const uploadRes = await api.post('/upload/photo', {
+        image: defectImageBase64,
+        folder: 'RailLink_defects'
+      }).catch(() => null)
+      if (uploadRes?.url) {
+        finalPhotoUrl = uploadRes.url
+      } else {
+        throw new Error('Failed to upload defect photo')
       }
 
       const newDefectRes = await api.post('/defects', {
@@ -1311,29 +1321,62 @@ export default function BlockPlanPage() {
               </div>
 
               <form onSubmit={handleSubmitDefectInBlockPlan} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+                {/* Mandatory Photo Alert Warning */}
+                {defectPhotoError && (
+                  <div style={{
+                    padding: '10px 14px',
+                    borderRadius: 'var(--radius-card)',
+                    background: 'rgba(201, 79, 79, 0.12)',
+                    border: '1px solid var(--dept-conflict)',
+                    color: 'var(--dept-conflict)',
+                    fontSize: '0.82rem',
+                    fontWeight: 800,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}>
+                    <AlertTriangle size={16} color="var(--dept-conflict)" style={{ flexShrink: 0 }} />
+                    <span>{defectPhotoError}</span>
+                  </div>
+                )}
+
                 {/* Photo upload picker */}
                 <input type="file" ref={defectFileInputRef} accept="image/*" onChange={handleDefectPhotoSelect} style={{ display: 'none' }} />
                 <div
                   onClick={() => defectFileInputRef.current?.click()}
                   style={{
-                    border: '2px dashed var(--accent)',
+                    border: defectPhotoError
+                      ? '2px dashed var(--dept-conflict)'
+                      : defectImagePreview
+                      ? '2px dashed var(--status-healthy)'
+                      : '2px dashed var(--accent)',
                     borderRadius: '12px',
                     padding: '20px',
                     textAlign: 'center',
                     cursor: 'pointer',
-                    background: defectImagePreview ? 'rgba(0,0,0,0.04)' : 'rgba(228, 164, 189, 0.05)'
+                    background: defectPhotoError
+                      ? 'rgba(201, 79, 79, 0.05)'
+                      : defectImagePreview
+                      ? 'rgba(0,0,0,0.04)'
+                      : 'rgba(228, 164, 189, 0.05)'
                   }}
                 >
                   {defectImagePreview ? (
                     <div>
                       <img src={defectImagePreview} alt="Preview" style={{ maxHeight: '140px', margin: '0 auto 8px', borderRadius: '8px', objectFit: 'contain' }} />
-                      <p style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--status-healthy)', margin: 0 }}>✓ Photo Selected</p>
+                      <p style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--status-healthy)', margin: 0 }}>✓ Photo Selected & Verified</p>
                     </div>
                   ) : (
                     <div>
-                      <Camera size={28} color="var(--accent)" style={{ margin: '0 auto 6px' }} />
-                      <p style={{ fontWeight: 800, fontSize: '0.85rem', margin: '0 0 2px' }}>Click to Upload Inspection Photo</p>
-                      <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: 0 }}>Auto-tagged via Smart Media Inspection CDN</p>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'rgba(201, 79, 79, 0.15)', color: 'var(--dept-conflict)', border: '1px solid var(--dept-conflict)', padding: '2px 8px', borderRadius: '4px', fontWeight: 800, fontSize: '0.7rem', marginBottom: '8px' }}>
+                        <AlertTriangle size={12} color="var(--dept-conflict)" />
+                        <span>MANDATORY · PHOTO REQUIRED</span>
+                      </div>
+                      <Camera size={28} color={defectPhotoError ? 'var(--dept-conflict)' : 'var(--accent)'} style={{ margin: '0 auto 6px' }} />
+                      <p style={{ fontWeight: 800, fontSize: '0.85rem', margin: '0 0 2px', color: defectPhotoError ? 'var(--dept-conflict)' : 'inherit' }}>
+                        Click to Upload Inspection Photo <span style={{ color: 'var(--dept-conflict)' }}>*</span>
+                      </p>
+                      <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: 0 }}>Inspection photo is strictly mandatory before submitting defect report</p>
                     </div>
                   )}
                 </div>
@@ -1498,11 +1541,17 @@ export default function BlockPlanPage() {
                   />
                 </div>
 
-                <div style={{ display: 'flex', gap: 'var(--space-md)', justifyContent: 'flex-end', marginTop: 'var(--space-md)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', justifyContent: 'flex-end', marginTop: 'var(--space-md)', flexWrap: 'wrap' }}>
+                  {!defectImageBase64 && (
+                    <span style={{ fontSize: '0.75rem', color: 'var(--dept-conflict)', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <AlertTriangle size={13} color="var(--dept-conflict)" />
+                      Photo required
+                    </span>
+                  )}
                   <button type="button" onClick={() => setShowDefectModal(false)} className="btn btn-secondary" disabled={isSubmittingDefect}>Cancel</button>
-                  <button type="submit" className="btn btn-primary" disabled={isSubmittingDefect} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button type="submit" className="btn btn-primary" disabled={isSubmittingDefect} style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: !defectImageBase64 ? 0.8 : 1 }}>
                     {isSubmittingDefect ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-                    <span>Save & Flag for Block</span>
+                    <span>Save & Flag for Block {!defectImageBase64 && '*(Photo Required)'}</span>
                   </button>
                 </div>
               </form>

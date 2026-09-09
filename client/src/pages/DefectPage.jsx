@@ -111,6 +111,7 @@ export default function DefectPage() {
   const [formNotes, setFormNotes] = useState('')
   const [selectedImageBase64, setSelectedImageBase64] = useState(null)
   const [selectedImagePreview, setSelectedImagePreview] = useState(null)
+  const [photoError, setPhotoError] = useState(null)
   const fileInputRef = useRef(null)
 
   // Fetch live defects from backend/Supabase
@@ -204,6 +205,7 @@ export default function DefectPage() {
   const handlePhotoSelect = (e) => {
     const file = e.target.files?.[0]
     if (file) {
+      setPhotoError(null)
       const reader = new FileReader()
       reader.onloadend = () => {
         setSelectedImageBase64(reader.result)
@@ -216,20 +218,28 @@ export default function DefectPage() {
   // Real Defect Submission + Database Upload handler with Division & Location
   const handleUploadSubmit = async (e) => {
     e.preventDefault()
+
+    // STRICT VALIDATION: Photo upload is strictly mandatory
+    if (!selectedImageBase64) {
+      setPhotoError('Field inspection photo is mandatory. Railway safety protocol requires an inspection photo before logging a defect.')
+      return
+    }
+
     setIsUploading(true)
+    setPhotoError(null)
 
     try {
-      let finalPhotoUrl = 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=800&q=80'
+      let finalPhotoUrl = ''
 
-      // Upload field photo if selected
-      if (selectedImageBase64) {
-        const uploadRes = await api.post('/upload/photo', {
-          image: selectedImageBase64,
-          folder: 'RailLink_field_inspections'
-        })
-        if (uploadRes && uploadRes.url) {
-          finalPhotoUrl = uploadRes.url
-        }
+      // Upload field photo to Cloudinary
+      const uploadRes = await api.post('/upload/photo', {
+        image: selectedImageBase64,
+        folder: 'RailLink_field_inspections'
+      })
+      if (uploadRes && uploadRes.url) {
+        finalPhotoUrl = uploadRes.url
+      } else {
+        throw new Error('Could not upload photo to media storage')
       }
 
       // Save new defect to backend API (and Supabase)
@@ -789,6 +799,28 @@ export default function DefectPage() {
               </div>
             ) : (
               <form onSubmit={handleUploadSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
+                {/* Mandatory Photo Alert Warning */}
+                {photoError && (
+                  <div style={{
+                    padding: '12px 18px',
+                    borderRadius: 'var(--radius-card)',
+                    background: 'rgba(201, 79, 79, 0.12)',
+                    border: '1px solid var(--dept-conflict)',
+                    color: 'var(--dept-conflict)',
+                    fontSize: '0.85rem',
+                    fontWeight: 800,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px'
+                  }}>
+                    <AlertTriangle size={20} color="var(--dept-conflict)" style={{ flexShrink: 0 }} />
+                    <div>
+                      <strong>Photo Upload Required: </strong>
+                      <span>{photoError}</span>
+                    </div>
+                  </div>
+                )}
+
                 {/* Drag and drop zone with real file picker */}
                 <input
                   type="file"
@@ -801,14 +833,23 @@ export default function DefectPage() {
                 <div
                   onClick={() => fileInputRef.current?.click()}
                   style={{
-                    border: '2px dashed var(--accent)',
+                    border: photoError
+                      ? '2px dashed var(--dept-conflict)'
+                      : selectedImagePreview
+                      ? '2px dashed var(--status-healthy)'
+                      : '2px dashed var(--accent)',
                     borderRadius: 'var(--radius-card)',
                     padding: 'var(--space-2xl)',
                     textAlign: 'center',
-                    background: selectedImagePreview ? 'rgba(0,0,0,0.1)' : 'rgba(228, 164, 189, 0.05)',
+                    background: photoError
+                      ? 'rgba(201, 79, 79, 0.05)'
+                      : selectedImagePreview
+                      ? 'rgba(109, 184, 123, 0.06)'
+                      : 'rgba(228, 164, 189, 0.05)',
                     cursor: 'pointer',
                     position: 'relative',
-                    overflow: 'hidden'
+                    overflow: 'hidden',
+                    transition: 'all 0.2s ease'
                   }}
                 >
                   {selectedImagePreview ? (
@@ -818,19 +859,24 @@ export default function DefectPage() {
                         alt="Upload Preview"
                         style={{ maxHeight: '180px', margin: '0 auto 12px', borderRadius: '8px', objectFit: 'contain' }}
                       />
-                      <p style={{ fontWeight: 700, color: 'var(--status-healthy)', fontSize: '0.875rem' }}>
-                        ✓ Photo Selected — Ready for Upload
-                      </p>
-                      <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Click to choose a different photo</p>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(109, 184, 123, 0.15)', color: 'var(--status-healthy)', padding: '4px 12px', borderRadius: 'var(--radius-card)', fontWeight: 800, fontSize: '0.85rem' }}>
+                        <CheckCircle2 size={16} color="var(--status-healthy)" />
+                        <span>Photo Attached · Ready for Inspection Submission</span>
+                      </div>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '6px' }}>Click to choose a different photo</p>
                     </div>
                   ) : (
                     <div>
-                      <Camera size={36} color="var(--accent)" style={{ margin: '0 auto 12px' }} />
-                      <p style={{ fontWeight: 800, fontSize: '1rem', marginBottom: '4px' }}>
-                        Click or Drop Track / OHE / Signal Photo Here
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(201, 79, 79, 0.15)', color: 'var(--dept-conflict)', border: '1px solid var(--dept-conflict)', padding: '3px 10px', borderRadius: 'var(--radius-card)', fontWeight: 800, fontSize: '0.72rem', marginBottom: '10px' }}>
+                        <AlertTriangle size={13} color="var(--dept-conflict)" />
+                        <span>MANDATORY REQUIREMENT · PHOTO REQUIRED</span>
+                      </div>
+                      <Camera size={36} color={photoError ? 'var(--dept-conflict)' : 'var(--accent)'} style={{ margin: '0 auto 10px' }} />
+                      <p style={{ fontWeight: 800, fontSize: '1rem', marginBottom: '4px', color: photoError ? 'var(--dept-conflict)' : 'inherit' }}>
+                        Click or Drop Track / OHE / Signal Photo Here <span style={{ color: 'var(--dept-conflict)' }}>*</span>
                       </p>
-                      <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                        Select any photo from your device · AI-powered tagging and priority classification applied automatically
+                      <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', maxWidth: '480px', margin: '0 auto' }}>
+                        Select any photo from your device. Defect cannot be logged without an inspection photograph. AI priority classification is generated from the uploaded image.
                       </p>
                     </div>
                   )}
@@ -1044,20 +1090,37 @@ export default function DefectPage() {
                   />
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-md)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+                  {!selectedImageBase64 && (
+                    <span style={{ fontSize: '0.78rem', color: 'var(--dept-conflict)', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <AlertTriangle size={14} color="var(--dept-conflict)" />
+                      Field photo upload is mandatory to submit
+                    </span>
+                  )}
                   <button type="button" onClick={() => setActiveTab('gallery')} className="btn btn-secondary">
                     Cancel
                   </button>
-                  <button type="submit" disabled={isUploading} className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button
+                    type="submit"
+                    disabled={isUploading}
+                    className="btn btn-primary"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      opacity: !selectedImageBase64 ? 0.75 : 1,
+                      cursor: isUploading ? 'not-allowed' : 'pointer'
+                    }}
+                  >
                     {isUploading ? (
                       <>
                         <div className="spinner" style={{ width: '16px', height: '16px' }} />
-                        Uploading to Live DB...
+                        <span>Uploading to Live DB...</span>
                       </>
                     ) : (
                       <>
                         <Sparkles size={16} />
-                        Submit Defect Report
+                        <span>Submit Defect Report {!selectedImageBase64 && '*(Photo Required)'}</span>
                       </>
                     )}
                   </button>
