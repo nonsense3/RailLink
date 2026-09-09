@@ -165,7 +165,7 @@ The Express server serves both the API and the built React SPA — no separate s
 
 ## 📄 License
 
-Built for educational and hackathon demonstration purposes.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
