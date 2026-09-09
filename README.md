@@ -132,70 +132,34 @@ cd client && npm install && cd ..
 cd server && npm install && cd ..
 ```
 
-<<<<<<< HEAD
-=======
-### 3. Set up environment variables
-
-**`server/.env`**
-```env
-PORT=5000
-NODE_ENV=development
-SUPABASE_URL=your_supabase_url
-SUPABASE_ANON_KEY=your_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-CLOUDINARY_CLOUD_NAME=your_cloud_name
-CLOUDINARY_API_KEY=your_api_key
-CLOUDINARY_API_SECRET=your_api_secret
-GEMINI_API_KEY=your_gemini_key
-MAPTILER_API_KEY=your_maptiler_key
-```
-
-**`client/.env`**
-```env
-VITE_API_URL=http://localhost:5000/api
-VITE_SUPABASE_URL=your_supabase_url
-VITE_SUPABASE_ANON_KEY=your_anon_key
-VITE_MAPTILER_API_KEY=your_maptiler_key
-VITE_GEMINI_API_KEY=your_gemini_key
-```
-
 ### 4. Set up the database
 Run the SQL file in your Supabase SQL editor:
 ```
 SETUP_SUPABASE_ALL_IN_ONE.sql
 ```
-
->>>>>>> 953445d (Fix dynamic location synchronization and add bold techstack badges to README)
 ### 5. Start development
 ```bash
 npm run dev
 ```
-
 App runs at → `http://localhost:5173`
-
 ---
-
 ## ☁️ Deploy to Render
-
 1. Push to GitHub
 2. Go to [render.com](https://render.com) → New → Blueprint
 3. Connect your repo — Render auto-reads `render.yaml`
 4. Select **`raillink-app`** (Web Service)
 5. Add all environment variables in the Render dashboard
 6. Click **Deploy**
-
 The Express server serves both the API and the built React SPA — no separate static site needed. All routes (including `/admin`, `/map`, `/defects`) work correctly on refresh.
-
 ---
-
 ## 👥 Team Members
 
 | Name | Role | GitHub |
 |------|------|--------|
-| **[Your Name]** | Full Stack Lead | [@handle](https://github.com/handle) |
-| **[Member 2]** | Backend & Database | [@handle](https://github.com/handle) |
-| **[Member 3]** | Frontend & UI/UX | [@handle](https://github.com/handle) |
-| **[Member 4]** | AI & Analytics | [@handle](https://github.com/handle) |
+| **Ankit Dey** | Full Stack Lead | [@handle](https://github.com/handle) |
+| **Souvik Das** | Backend & Database | [@handle](https://github.com/handle) |
+| **Sanchari Ganguly** | Frontend & UI/UX | [@handle](https://github.com/handle) |
+| **Rashmi Pyne** | AI & Analytics | [@handle](https://github.com/handle) |
 
 ---
 
@@ -207,5 +171,5 @@ Built for educational and hackathon demonstration purposes.
 
 <p align="center">
   Built with ❤️ for Indian Railways<br/>
-  Powered by <strong>Google Gemini AI</strong> · <strong>Cloudinary</strong> · <strong>Supabase</strong> · <strong>Render</strong>
+  by TEAM METAXL
 </p>
