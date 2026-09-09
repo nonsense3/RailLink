@@ -18,11 +18,11 @@
 
 | Block Plans | Defect Reporting |
 |-------------|-----------------|
-| ![Plans](./screenshots/plans.png) | ![Defects](./screenshots/defects.png) |
+| ![Plans](./screenshots/plans.png) | ![Defects](./screenshots/defect.jpeg) |
 
 | Analytics | AI Studio |
 |-----------|-----------|
-| ![Analytics](./screenshots/analytics.png) | ![AI Studio](./screenshots/ai-studio.png) |
+| ![Analytics](./screenshots/analytics.jpeg) | ![AI Studio](./screenshots/ai-studio.jpeg) |
 
 ---
 
