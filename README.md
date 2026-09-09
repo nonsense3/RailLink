@@ -156,8 +156,8 @@ The Express server serves both the API and the built React SPA — no separate s
 
 | Name | Role | GitHub |
 |------|------|--------|
-| **Ankit Dey** | Full Stack Lead | [@handle](https://github.com/nosense3) |
-| **Souvik Das** | Backend & Database | [@handle](https://github.com/dasouvik122005) |
+| **Ankit Dey** | Full Stack Lead | [nosense3](https://github.com/nosense3) |
+| **Souvik Das** | Backend & Database | [@dasouvik122005](https://github.com/dasouvik122005) |
 | **Sanchari Ganguly** | Frontend & UI/UX | [@handle](https://github.com/handle) |
 | **Rashmi Pyne** | AI & Analytics | [@handle](https://github.com/) |
 
