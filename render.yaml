@@ -1,6 +1,9 @@
 services:
+  # -------------------------------------------------------------
+  # OPTION 1: Full-Stack Unified Web Service (Express + React SPA)
+  # -------------------------------------------------------------
   - type: web
-    name: raillink
+    name: raillink-app
     env: node
     plan: free
     buildCommand: npm run build
@@ -30,6 +33,31 @@ services:
         sync: false
       - key: VITE_API_URL
         value: /api
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+      - key: VITE_MAPTILER_API_KEY
+        sync: false
+      - key: VITE_GEMINI_API_KEY
+        sync: false
+
+  # -------------------------------------------------------------
+  # OPTION 2: Frontend-Only Static Site (If deployed as Static Site)
+  # -------------------------------------------------------------
+  - type: web
+    name: raillink-static-ui
+    env: static
+    plan: free
+    buildCommand: cd client && npm install && npm run build
+    staticPublishPath: client/dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        sync: false
       - key: VITE_SUPABASE_URL
         sync: false
       - key: VITE_SUPABASE_ANON_KEY
