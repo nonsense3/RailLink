@@ -1,0 +1,60 @@
+# Environment & Sensitive Config Files (NEVER COMMIT TO GITHUB)
+.env
+.env.*
+!.env.example
+*.env
+*.env.local
+*.env.development.local
+*.env.test.local
+*.env.production.local
+
+# Dependencies
+node_modules/
+*/node_modules/
+package-lock.json.bak
+
+# Build Artifacts & Output
+dist/
+client/dist/
+dist-ssr/
+build/
+*.tsbuildinfo
+
+# Vercel deployment cache
+.vercel/
+
+# Logs & Debugging
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Python & ML artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv/
+
+# OS & IDE Files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Temporary media & cache
+.tempmediaStorage/
+.cache/

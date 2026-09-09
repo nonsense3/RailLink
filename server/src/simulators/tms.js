@@ -1,0 +1,77 @@
+// Simulated Track Management System (TMS)
+export const tmsDefects = [
+  {
+    id: 'TMS-DF-101',
+    corridorId: 'CORR-NDLS-AGC',
+    corridorName: 'Delhi - Agra Semi High-Speed Corridor',
+    sectionId: 'SEC-04',
+    kmStart: 142.4,
+    kmEnd: 148.8,
+    trackType: 'Up Fast Line',
+    defectCategory: 'Ballast Deficiency & Alignment',
+    severity: 'High',
+    overdueDays: 4,
+    reportedAt: '2025-09-04T08:30:00Z',
+    inspectionMethod: 'TRC Geometry Car #402',
+    workRequired: 'Ballast Cleaning Machine (BCM) + Duomatic Tamping',
+    estimatedDurationMin: 240,
+    speedRestrictionKmph: 75,
+    status: 'Pending Block'
+  },
+  {
+    id: 'TMS-DF-102',
+    corridorId: 'CORR-CSTM-PUNE',
+    corridorName: 'Mumbai - Pune Expressway Section',
+    sectionId: 'SEC-12',
+    kmStart: 34.0,
+    kmEnd: 37.2,
+    trackType: 'Down Slow Line',
+    defectCategory: 'Switch Expansion Joint (SEJ) Gap Widening',
+    severity: 'Critical',
+    overdueDays: 1,
+    reportedAt: '2025-09-06T14:15:00Z',
+    inspectionMethod: 'P-Way Keyman Foot Patrol',
+    workRequired: 'SEJ Packer adjustment and sleeper re-anchoring',
+    estimatedDurationMin: 180,
+    speedRestrictionKmph: 50,
+    status: 'Block Requested'
+  },
+  {
+    id: 'TMS-DF-103',
+    corridorId: 'CORR-HWH-KGP',
+    corridorName: 'Howrah - Kharagpur Trunk Route',
+    sectionId: 'SEC-02',
+    kmStart: 68.0,
+    kmEnd: 71.5,
+    trackType: 'Middle Line',
+    defectCategory: 'Thermit Weld Internal Micro-Fissure',
+    severity: 'High',
+    overdueDays: 0,
+    reportedAt: '2025-09-07T11:00:00Z',
+    inspectionMethod: 'Ultrasonic Flaw Detection (USFD)',
+    workRequired: 'Cut rail and insert joggled fishplate with clamp, followed by AT welding',
+    estimatedDurationMin: 150,
+    speedRestrictionKmph: 30,
+    status: 'Pending Block'
+  },
+  {
+    id: 'TMS-DF-104',
+    corridorId: 'CORR-MAS-AJJ',
+    corridorName: 'Chennai Central - Arakkonam Fast Line',
+    sectionId: 'SEC-09',
+    kmStart: 45.1,
+    kmEnd: 48.0,
+    trackType: 'Up Main',
+    defectCategory: 'Turnout 1:12 Tongue Rail Wear',
+    severity: 'Medium',
+    overdueDays: 0,
+    reportedAt: '2025-09-05T09:20:00Z',
+    inspectionMethod: 'Quarterly Section Engineer Inspection',
+    workRequired: 'Tongue rail welding reconditioning and gauge tie plate torque',
+    estimatedDurationMin: 180,
+    speedRestrictionKmph: 90,
+    status: 'Scheduled'
+  }
+]
+
+export const getTmsDefects = () => tmsDefects
