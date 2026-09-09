@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import RevealWrapper from '../components/layout/RevealWrapper'
-import api from '../lib/api'
+import api, { wakeUpServer } from '../lib/api'
 import LocationAutocomplete from '../components/ui/LocationAutocomplete'
 import InteractiveLocationMapPicker from '../components/ui/InteractiveLocationMapPicker'
 import { RAILWAY_STATIONS } from '../lib/railwayLocations'
@@ -272,6 +272,16 @@ export default function DefectPage() {
     setPhotoError(null)
 
     try {
+      // On production (Render), wake up the server first to avoid cold-start timeout
+      const isProduction = typeof window !== 'undefined' && !['localhost', '127.0.0.1'].includes(window.location.hostname)
+      if (isProduction) {
+        try {
+          await wakeUpServer()
+        } catch {
+          // Server might still be waking up — proceed anyway, retry logic will handle it
+        }
+      }
+
       let finalPhotoUrl = ''
 
       // Upload field photo to backend (Cloudinary or persistent storage)
@@ -316,10 +326,22 @@ export default function DefectPage() {
     } catch (err) {
       console.error('Upload defect failed:', err)
       setIsUploading(false)
-      const errorDetail = err?.response?.data?.error || err?.error || err?.message || (typeof err === 'string' ? err : 'Upload failed. Check network or server logs.')
+      let errorDetail = 'Upload failed. Check network or server logs.'
+      if (typeof err === 'string') {
+        errorDetail = err === 'Network Error'
+          ? 'Server is starting up (Render free tier). Please wait 30 seconds and try again.'
+          : err
+      } else if (err?.error) {
+        errorDetail = err.error
+      } else if (err?.message) {
+        errorDetail = err.message === 'Network Error'
+          ? 'Server is starting up (Render free tier). Please wait 30 seconds and try again.'
+          : err.message
+      }
       alert(`Defect submission failed: ${errorDetail}`)
     }
   }
+
 
   const getSeverityStyle = (sev) => {
     switch (sev) {
