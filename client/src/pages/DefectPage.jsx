@@ -327,30 +327,26 @@ export default function DefectPage() {
     }
   }
 
-  // Clear all defects handler (wipes all records from Supabase and purges all photos from Cloudinary)
+  // Clear all defects handler (clears Supabase DB, keeps Cloudinary photos safe as requested)
   const handleClearAllDefects = async () => {
-    const confirmClear = window.confirm('⚠️ ARE YOU SURE? This will permanently delete ALL defects from Supabase and wipe their photos from Cloudinary.')
+    const confirmClear = window.confirm('⚠️ ARE YOU SURE? This will clear all defects from the Supabase database. Uploaded Cloudinary photos will be safely preserved.')
     if (!confirmClear) return
 
     try {
-      const allPhotoUrls = defects.map(d => d.photoUrl).filter(Boolean)
-
       setDefects([])
       if (selectedDefect) setSelectedDefect(null)
 
       let cleared = false
       try {
-        await api.delete('/defects', { data: { photoUrls: allPhotoUrls } })
+        await api.delete('/defects', { data: { keepPhotos: true } })
         cleared = true
       } catch (apiErr) {
         console.warn('[API Clear All Error]:', apiErr)
       }
 
       if (!cleared) {
+        // Direct Supabase purge — keeps Cloudinary photo assets intact
         await supabase.from('defects').delete().neq('id', '___PURGE_ALL___')
-        try {
-          await api.post('/defects/purge-photos', { photoUrls: allPhotoUrls })
-        } catch {}
       }
 
       await loadLiveDefects()
@@ -496,9 +492,15 @@ export default function DefectPage() {
       // Save new defect to backend API (and Supabase)
       const newDefectId = `DEF-${(formDept.slice(0, 3) || 'ENG').toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`
       const kmClean = parseFloat((formKmMarker || '').replace(/[^0-9.]/g, '')) || 104.2
+      const sourceSystem = formDept === 'Signal & Telecom' ? 'SMMS' : formDept === 'Traction Distribution' ? 'TDMS' : 'TMS'
+      const divisionCode = formDivision.match(/\(([^)]+)\)/)?.[1] || 'IR'
+      const fullCorridorName = `${formDivision} | ${formCorridor} — ${formLocation}`
+      const descriptionText = formNotes || `Field inspection recorded at ${formLocation} (${formKmMarker || 'KM 0.0'}) under ${formDivision}.`
+
       const defectPayload = {
         id: newDefectId,
         department: formDept,
+        sourceSystem: sourceSystem,
         severity: formSeverity,
         division: formDivision,
         corridorName: formCorridor,
@@ -507,7 +509,7 @@ export default function DefectPage() {
         kmMarker: formKmMarker,
         trackType: formTrackLine,
         assetType: formAssetCategory,
-        description: formNotes,
+        description: descriptionText,
         photoUrl: finalPhotoUrl
       }
 
@@ -527,27 +529,62 @@ export default function DefectPage() {
           const { error: sbErr } = await supabase.from('defects').insert([{
             id: newDefectId,
             department: formDept,
-            severity: formSeverity,
-            corridor_name: `${formDivision} | ${formCorridor}`,
+            source_system: sourceSystem,
+            corridor_id: `CORR-${divisionCode}`,
+            corridor_name: fullCorridorName,
             section_id: formDivision,
             km_start: kmClean,
             km_end: kmClean + 0.1,
             track_type: formTrackLine,
             defect_category: formAssetCategory,
-            work_required: formNotes || 'Field defect recorded for corridor block planning.',
-            photo_url: finalPhotoUrl,
+            severity: formSeverity,
             status: 'Pending Block',
-            reported_at: new Date().toISOString()
+            reported_at: new Date().toISOString(),
+            work_required: descriptionText,
+            photo_url: finalPhotoUrl,
+            estimated_duration_min: 120,
+            ai_confidence: '97.8%'
           }])
           if (!sbErr) {
             saved = true
           } else {
             console.error('[Supabase Insert Error]:', sbErr)
+            throw new Error(`Supabase DB Error: ${sbErr.message}`)
           }
         } catch (sbErr) {
           console.error('[Supabase Insert Exception]:', sbErr)
+          throw sbErr
         }
       }
+
+      // Optimistically add new defect to UI state so it displays immediately
+      const optimisticDefect = {
+        id: newDefectId,
+        division: formDivision,
+        sourceSystem: sourceSystem,
+        department: formDept,
+        assetType: formAssetCategory,
+        section: `${formCorridor} — ${formLocation}`,
+        location: formLocation,
+        rawSection: fullCorridorName,
+        kmMarker: formKmMarker || `KM ${kmClean}`,
+        trackType: formTrackLine,
+        severity: formSeverity,
+        status: 'Pending Block',
+        reportedDate: new Date().toISOString().split('T')[0],
+        dueDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+        overdueDays: 0,
+        photoUrl: finalPhotoUrl,
+        aiTags: [
+          formDivision.split('—')[1]?.trim() || formDivision,
+          formTrackLine,
+          formAssetCategory,
+          formSeverity === 'Critical' ? 'Priority 1 (Critical)' : formSeverity === 'High' ? 'Priority 2 (High)' : 'Routine'
+        ],
+        aiConfidence: '97.8%',
+        description: descriptionText
+      }
+      setDefects(prev => [optimisticDefect, ...prev.filter(d => d.id !== newDefectId)])
 
       setIsUploading(false)
       setUploadSuccess(true)
@@ -559,13 +596,13 @@ export default function DefectPage() {
         fileInputRef.current.value = ''
       }
 
-      // Reload live list
+      // Reload live list from database to confirm persistence
       await loadLiveDefects()
 
       setTimeout(() => {
         setUploadSuccess(false)
         setActiveTab('gallery')
-      }, 1500)
+      }, 1200)
     } catch (err) {
       console.error('Upload defect failed:', err)
       setIsUploading(false)

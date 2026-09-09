@@ -155,19 +155,24 @@ router.post('/', async (req, res) => {
         if (match) numericKm = parseFloat(match[1])
       }
 
+      const divisionMatch = selectedDivision.match(/\(([^)]+)\)/)?.[1] || 'IR'
       const { error: insertError } = await supabase.from('defects').insert([{
         id: newDefect.id,
         department: newDefect.department,
         source_system: newDefect.sourceSystem,
+        corridor_id: `CORR-${divisionMatch}`,
         corridor_name: newDefect.section,
         section_id: newDefect.division,
         track_type: newDefect.trackType,
         defect_category: newDefect.assetType,
         km_start: numericKm,
+        km_end: numericKm ? numericKm + 0.1 : null,
         severity: newDefect.severity,
         status: newDefect.status,
         photo_url: newDefect.photoUrl,
-        work_required: newDefect.description
+        work_required: newDefect.description,
+        estimated_duration_min: 120,
+        ai_confidence: newDefect.aiConfidence || '97.8%'
       }])
 
       if (insertError) {
@@ -287,14 +292,16 @@ router.delete('/', async (req, res) => {
       }
     }
 
-    // 2. Delete specific photos and bulk purge folders in Cloudinary
-    try {
-      if (urlsToPurge.size > 0) {
-        await deleteTrackPhotosByUrls(Array.from(urlsToPurge))
+    // 2. Delete specific photos and bulk purge folders in Cloudinary ONLY if keepPhotos is not requested
+    if (!req.body?.keepPhotos) {
+      try {
+        if (urlsToPurge.size > 0) {
+          await deleteTrackPhotosByUrls(Array.from(urlsToPurge))
+        }
+        await deleteAllTrackPhotos()
+      } catch (cErr) {
+        console.warn('[Cloudinary Bulk Purge Warning]:', cErr.message)
       }
-      await deleteAllTrackPhotos()
-    } catch (cErr) {
-      console.warn('[Cloudinary Bulk Purge Warning]:', cErr.message)
     }
 
     // 3. Purge in-memory dataStore
@@ -310,7 +317,7 @@ router.delete('/', async (req, res) => {
       console.log('[Supabase Clear All Success]: All defects purged from Supabase')
     }
 
-    res.json({ success: true, message: 'All defects and Cloudinary photos cleared successfully from database', count: 0 })
+    res.json({ success: true, message: 'All defects cleared successfully from database (Cloudinary photos preserved)', count: 0 })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }

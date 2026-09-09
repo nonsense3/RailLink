@@ -53,7 +53,13 @@ const shouldRetry = (error) => {
 
 // Response interceptor with retry logic
 api.interceptors.response.use(
-  (response) => response.data,
+  (response) => {
+    // If a static SPA host intercepts an /api route and returns HTML (index.html), reject it as an API error
+    if (typeof response.data === 'string' && (response.data.includes('<!doctype') || response.data.includes('<!DOCTYPE') || response.data.includes('<html'))) {
+      return Promise.reject(new Error('Static site SPA fallback: API endpoint returned HTML instead of JSON'))
+    }
+    return response.data
+  },
   async (error) => {
     const config = error.config
     if (!config) return Promise.reject(error.response?.data || error.message)

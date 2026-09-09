@@ -14,15 +14,15 @@ export const config = {
   port: process.env.PORT || 3001,
   nodeEnv: process.env.NODE_ENV || 'development',
   supabase: {
-    url: process.env.SUPABASE_URL || 'https://cgelhhbquhzeynzwjeub.supabase.co',
+    url: process.env.SUPABASE_URL || '',
     anonKey: process.env.SUPABASE_ANON_KEY || '',
     serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY || ''
   },
   cloudinary: {
-    cloudName: process.env.CLOUDINARY_CLOUD_NAME || 'eqrpvaua',
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME || '',
     apiKey: process.env.CLOUDINARY_API_KEY || '',
     apiSecret: process.env.CLOUDINARY_API_SECRET || '',
-    uploadPreset: process.env.CLOUDINARY_UPLOAD_PRESET || 'raillink_uploads'
+    uploadPreset: process.env.CLOUDINARY_UPLOAD_PRESET || ''
   },
   mlServiceUrl: process.env.ML_SERVICE_URL || 'http://localhost:8000',
   rapidApi: {
