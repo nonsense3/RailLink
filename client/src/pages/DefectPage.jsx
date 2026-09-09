@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import RevealWrapper from '../components/layout/RevealWrapper'
 import api, { wakeUpServer } from '../lib/api'
@@ -26,7 +27,8 @@ import {
   RefreshCw,
   MapPin,
   Navigation,
-  Train
+  Train,
+  Zap
 } from 'lucide-react'
 
 export const INDIAN_RAILWAY_DIVISIONS = [
@@ -88,6 +90,7 @@ export const TRACK_LINES = [
 ]
 
 export default function DefectPage() {
+  const navigate = useNavigate()
   const [defects, setDefects] = useState([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -1392,13 +1395,17 @@ export default function DefectPage() {
                   Close
                 </button>
                 <button
+                  type="button"
                   onClick={() => {
-                    alert(`Maintenance block requested for ${selectedDefect.id}! Route to AI Planning Studio.`)
+                    const defectId = selectedDefect.id
                     setSelectedDefect(null)
+                    navigate(`/plans?scheduleDefect=${defectId}`)
                   }}
                   className="btn btn-primary"
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
                 >
-                  Schedule Priority Block
+                  <Zap size={14} />
+                  <span>Schedule Priority Block</span>
                 </button>
               </div>
             </motion.div>

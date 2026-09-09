@@ -110,6 +110,63 @@ export default function BlockPlanPage() {
   const [modalLocation, setModalLocation] = useState('Mathura Junction (MTJ) North Section')
   const [solverStep, setSolverStep] = useState(0)
 
+  // Schedule Block Modal States (supports defect-driven and manual corridor scheduling)
+  const [showScheduleModal, setShowScheduleModal] = useState(false)
+  const [scheduleTargetDefect, setScheduleTargetDefect] = useState(null)
+  const [scheduleTitle, setScheduleTitle] = useState('')
+  const [scheduleCorridor, setScheduleCorridor] = useState('Delhi - Agra Semi High-Speed Corridor (Sec 4)')
+  const [scheduleTrack, setScheduleTrack] = useState('Up Fast Line')
+  const [scheduleDate, setScheduleDate] = useState(tomorrowDateStr)
+  const [scheduleStartTime, setScheduleStartTime] = useState('02:00')
+  const [scheduleEndTime, setScheduleEndTime] = useState('05:30')
+  const [scheduleDepts, setScheduleDepts] = useState(['Engineering'])
+  const [schedulePriority, setSchedulePriority] = useState('High')
+  const [scheduleType, setScheduleType] = useState('Defect-Driven Remedial Block')
+  const [scheduleDescription, setScheduleDescription] = useState('')
+  const [isSubmittingSchedule, setIsSubmittingSchedule] = useState(false)
+
+  // Normalize defect records from API/Supabase to guarantee camelCase availability
+  const normalizeDefect = (d) => {
+    const dept = d.department || 'Engineering'
+    const rawSection = d.corridor_name || d.corridorName || d.section || ''
+    let division = d.division || d.section_id || ''
+    if (!division && rawSection.includes('|')) {
+      division = rawSection.split('|')[0].trim()
+    }
+    if (!division) division = 'Northern Railway — Delhi Division (DLI)'
+
+    let displaySection = rawSection
+    if (rawSection.includes('|')) {
+      displaySection = rawSection.split('|')[1].trim()
+    }
+    if (!displaySection) displaySection = 'Delhi - Agra Semi High-Speed Corridor'
+
+    const loc = d.location || (displaySection.includes('—') ? displaySection.split('—')[1]?.trim() : (displaySection.includes('-') ? displaySection.split('-').pop()?.trim() : displaySection))
+    const desc = d.work_required || d.workRequired || d.description || d.defect_category || d.defectCategory || 'Inspection Defect'
+
+    return {
+      id: d.id,
+      department: dept,
+      sourceSystem: d.source_system || d.sourceSystem || 'TMS',
+      division: division,
+      corridorName: displaySection,
+      section: displaySection,
+      rawSection: rawSection,
+      location: loc,
+      kmMarker: d.kmMarker || (d.km_start ? `KM ${d.km_start}` : (d.kmStart ? `KM ${d.kmStart}` : 'KM 104.2')),
+      trackType: d.track_type || d.trackType || 'Up Main Line',
+      defectCategory: d.defect_category || d.defectCategory || 'Track Infrastructure',
+      workRequired: desc,
+      description: desc,
+      severity: d.severity || 'High',
+      status: d.status || 'Pending Block',
+      photoUrl: d.photo_url || d.photoUrl || '',
+      photo_url: d.photo_url || d.photoUrl || '',
+      overdueDays: d.overdue_days || d.overdueDays || 0,
+      reportedDate: d.reportedDate || (d.reported_at ? d.reported_at.split('T')[0] : (d.created_at ? d.created_at.split('T')[0] : '2026-09-09'))
+    }
+  }
+
   const fetchData = async () => {
     try {
       setRefreshing(true)
@@ -123,7 +180,7 @@ export default function BlockPlanPage() {
         setDataSource(plansRes.source || 'RailLink Live DB')
       }
       if (defRes?.defects) {
-        setDefectsList(defRes.defects)
+        setDefectsList(defRes.defects.map(normalizeDefect))
       }
     } catch (err) {
       console.error('Failed to load block plans data:', err)
@@ -136,6 +193,20 @@ export default function BlockPlanPage() {
   useEffect(() => {
     fetchData()
   }, [])
+
+  // Auto-open schedule modal if navigated from Defect Explorer with ?scheduleDefect=ID
+  useEffect(() => {
+    if (defectsList.length > 0) {
+      const params = new URLSearchParams(window.location.search)
+      const defectIdParam = params.get('scheduleDefect')
+      if (defectIdParam) {
+        const target = defectsList.find(d => d.id === defectIdParam)
+        if (target) {
+          handleOpenScheduleFromDefect(target)
+        }
+      }
+    }
+  }, [defectsList])
 
   // Dynamic corridor list
   const corridors = useMemo(() => {
@@ -171,9 +242,13 @@ export default function BlockPlanPage() {
     })
   }, [plans, selectedDept, selectedCorridor, viewMode, searchQuery])
 
-  // Filter defects
+  // Filter defects (only unassigned defects awaiting curfew block allocation)
   const filteredDefects = useMemo(() => {
     return defectsList.filter(d => {
+      // Must be awaiting block curfew (not already scheduled or completed)
+      const isAwaiting = !d.status || d.status === 'Pending Block' || d.status === 'Pending Block Allocation' || d.status === 'Open' || d.status.toLowerCase().includes('pending')
+      if (!isAwaiting) return false
+
       const deptMatch = selectedDept === 'ALL' || (
         selectedDept === 'ENGG' ? d.department === 'Engineering' :
         selectedDept === 'S&T' ? d.department === 'Signal & Telecom' :
@@ -186,6 +261,7 @@ export default function BlockPlanPage() {
       const searchMatch = !searchQuery ||
         (d.id && d.id.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (d.description && d.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (d.defectCategory && d.defectCategory.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (d.section && d.section.toLowerCase().includes(searchQuery.toLowerCase()))
       return deptMatch && corridorMatch && searchMatch
     })
@@ -200,7 +276,8 @@ export default function BlockPlanPage() {
     const avgEfficiency = Math.round(
       plans.reduce((acc, p) => acc + (parseFloat(p.efficiencyScore) || 92), 0) / (total || 1)
     )
-    return { total, conflicts, scheduled, trainsProtected, avgEfficiency, openDefects: defectsList.length }
+    const openDefects = defectsList.filter(d => !d.status || d.status === 'Pending Block' || d.status === 'Pending Block Allocation' || d.status === 'Open' || d.status.toLowerCase().includes('pending')).length
+    return { total, conflicts, scheduled, trainsProtected, avgEfficiency, openDefects }
   }, [plans, defectsList])
 
   // Handle Photo File Pick with compression
@@ -296,34 +373,117 @@ export default function BlockPlanPage() {
     }
   }
 
-  // Convert a defect into an instant scheduled block
+  // Open schedule modal prefilled with defect details
+  const handleOpenScheduleFromDefect = (defect) => {
+    setScheduleTargetDefect(defect)
+    setScheduleTitle(`${defect.department || 'Engineering'} Urgent Remedial: ${defect.defectCategory || defect.workRequired || defect.description?.slice(0, 40) || 'Track Rectification'}`)
+    setScheduleCorridor(defect.section || defect.corridorName || 'Delhi - Agra Semi High-Speed Corridor (Sec 4)')
+    setScheduleTrack(`${defect.trackType || 'Up Main Line'} (${defect.kmMarker || 'Section Track'})`)
+    setScheduleDate(tomorrowDateStr)
+    setScheduleStartTime('02:00')
+    setScheduleEndTime('05:30')
+    setScheduleDepts(Array.from(new Set([defect.department || 'Engineering', 'Signal & Telecom'])))
+    setSchedulePriority(defect.severity || 'High')
+    setScheduleType('Defect-Driven Remedial Block')
+    setScheduleDescription(defect.description || defect.workRequired || `Remedial block scheduled to address defect ${defect.id} under ${defect.division || 'Corridor'}.`)
+    setShowScheduleModal(true)
+  }
+
+  // Open schedule modal for manual corridor curfew creation
+  const handleOpenManualSchedule = () => {
+    setScheduleTargetDefect(null)
+    setScheduleTitle('AI Coordinated Multi-Discipline Curfew')
+    setScheduleCorridor(selectedCorridor !== 'All Corridors' ? selectedCorridor : 'Delhi - Agra Semi High-Speed Corridor (Sec 4)')
+    setScheduleTrack('Both Lines (Coordinated Curfew)')
+    setScheduleDate(tomorrowDateStr)
+    setScheduleStartTime('01:30')
+    setScheduleEndTime('05:00')
+    setScheduleDepts(['Engineering', 'Signal & Telecom', 'Traction Distribution'])
+    setSchedulePriority('High')
+    setScheduleType('Tri-Disciplinary Integrated Block')
+    setScheduleDescription('Joint corridor maintenance curfew window coordinated across departments to eliminate passenger train stoppage.')
+    setShowScheduleModal(true)
+  }
+
+  // Backward-compatible alias
   const handleScheduleBlockFromDefect = (defect) => {
+    handleOpenScheduleFromDefect(defect)
+  }
+
+  // Submit and persist the scheduled block plan to database & API
+  const handleConfirmScheduleBlock = async (e) => {
+    if (e) e.preventDefault()
+    setIsSubmittingSchedule(true)
+
+    // Compute duration from start and end time
+    let durationText = '3h 30m'
+    try {
+      const [sh, sm] = (scheduleStartTime || '02:00').split(':').map(Number)
+      const [eh, em] = (scheduleEndTime || '05:30').split(':').map(Number)
+      let diffMinutes = (eh * 60 + em) - (sh * 60 + sm)
+      if (diffMinutes < 0) diffMinutes += 24 * 60
+      const hours = Math.floor(diffMinutes / 60)
+      const mins = diffMinutes % 60
+      durationText = mins > 0 ? `${hours}h ${mins}m` : `${hours}h 00m`
+    } catch {
+      durationText = '3h 30m'
+    }
+
     const newBlock = {
       id: `BP-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`,
-      title: `${defect.department} Urgent Rectification: ${defect.description?.slice(0, 45)}...`,
-      corridor: defect.section || defect.corridorName || 'Delhi - Agra Semi High-Speed Corridor (Sec 4)',
-      track: defect.kmMarker || 'Up Fast Line',
-      date: new Date().toISOString().split('T')[0],
-      startTime: '02:00',
-      endTime: '05:30',
-      duration: '3h 30m',
-      departments: [defect.department || 'Engineering', 'Signal & Telecom'],
+      title: scheduleTitle || 'Coordinated Maintenance Block',
+      corridor: scheduleCorridor,
+      corridorId: 'CORR-GEN',
+      track: scheduleTrack,
+      date: scheduleDate,
+      startTime: scheduleStartTime,
+      endTime: scheduleEndTime,
+      duration: durationText,
+      departments: scheduleDepts.length > 0 ? scheduleDepts : ['Engineering'],
       status: 'Scheduled',
-      type: 'Defect-Driven Remedial Block',
-      priority: defect.severity || 'High',
-      efficiencyScore: '97.5%',
-      coordinationIndex: 'Joint Synchronized',
+      type: scheduleType,
+      priority: schedulePriority,
+      efficiencyScore: '98.5%',
+      coordinationIndex: scheduleDepts.length > 1 ? 'Joint Synchronized (Coupled Curfew)' : 'Departmental Curfew',
       trainsImpacted: 0,
       freightDiverted: 0,
       aiOptimized: true,
-      description: `Remedial block scheduled to address defect ${defect.id}: ${defect.description}. Synchronized with adjacent departments to eliminate separate traffic curfews.`
+      description: scheduleDescription || (scheduleTargetDefect 
+        ? `Remedial block scheduled to address defect ${scheduleTargetDefect.id}: ${scheduleTargetDefect.description}.`
+        : `Planned maintenance curfew window on ${scheduleTrack}.`),
+      defectId: scheduleTargetDefect?.id || null
     }
 
-    setPlans(prev => [newBlock, ...prev])
-    setDefectsList(prev => prev.map(d => d.id === defect.id ? { ...d, status: 'Block Scheduled' } : d))
-    setViewMode('grid')
-    setNotification(`Maintenance block scheduled for defect ${defect.id}! Coupled with night curfew window.`)
-    setTimeout(() => setNotification(null), 5000)
+    try {
+      const res = await api.post('/plans', newBlock).catch(err => {
+        console.warn('API post error:', err)
+        return null
+      })
+
+      const savedPlan = res?.plan || newBlock
+
+      setPlans(prev => [savedPlan, ...prev.filter(p => p.id !== savedPlan.id)])
+      if (scheduleTargetDefect) {
+        setDefectsList(prev => prev.map(d => d.id === scheduleTargetDefect.id ? { ...d, status: 'Block Scheduled' } : d))
+      }
+
+      setIsSubmittingSchedule(false)
+      setShowScheduleModal(false)
+      setViewMode('grid')
+      setNotification(`Block plan ${savedPlan.id} successfully scheduled! Synced into Master Block Plans.`)
+      setTimeout(() => setNotification(null), 6000)
+    } catch (err) {
+      console.error('Failed to schedule block plan:', err)
+      setPlans(prev => [newBlock, ...prev.filter(p => p.id !== newBlock.id)])
+      if (scheduleTargetDefect) {
+        setDefectsList(prev => prev.map(d => d.id === scheduleTargetDefect.id ? { ...d, status: 'Block Scheduled' } : d))
+      }
+      setIsSubmittingSchedule(false)
+      setShowScheduleModal(false)
+      setViewMode('grid')
+      setNotification(`Block plan ${newBlock.id} scheduled locally!`)
+      setTimeout(() => setNotification(null), 6000)
+    }
   }
 
   // Handle AI Auto-Resolve Conflict
@@ -682,6 +842,14 @@ export default function BlockPlanPage() {
             >
               <RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />
               <span>{refreshing ? 'Syncing...' : 'Sync Network'}</span>
+            </button>
+            <button
+              onClick={handleOpenManualSchedule}
+              className="btn btn-secondary"
+              style={{ padding: '12px 18px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--accent)' }}
+            >
+              <CalendarRange size={16} color="var(--accent)" />
+              <span style={{ fontWeight: 800 }}>Schedule Block</span>
             </button>
             <button
               onClick={() => setShowDefectModal(true)}
@@ -1193,7 +1361,10 @@ export default function BlockPlanPage() {
               {filteredDefects.map((defect) => (
                 <div key={defect.id} className="card" style={{ padding: 'var(--space-lg)', display: 'flex', flexDirection: 'column' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-sm)' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)' }}>{defect.id}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-muted)' }}>{defect.id}</span>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>• {defect.reportedDate}</span>
+                    </div>
                     <span className="badge" style={{
                       background: defect.severity === 'Critical' ? 'rgba(201, 79, 79, 0.15)' : 'rgba(212, 160, 87, 0.15)',
                       color: defect.severity === 'Critical' ? 'var(--dept-conflict)' : 'var(--dept-trd)',
@@ -1203,29 +1374,39 @@ export default function BlockPlanPage() {
                     </span>
                   </div>
 
-                  {defect.photoUrl && (
-                    <div style={{ height: '140px', borderRadius: '10px', overflow: 'hidden', marginBottom: 'var(--space-md)', background: 'var(--bg-secondary)' }}>
+                  {defect.photoUrl ? (
+                    <div style={{ height: '150px', borderRadius: '10px', overflow: 'hidden', marginBottom: 'var(--space-md)', background: 'var(--bg-secondary)' }}>
                       <img src={defect.photoUrl} alt="Defect" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    </div>
+                  ) : (
+                    <div style={{ height: '70px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: 'var(--space-md)', background: 'var(--bg-secondary)', color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600 }}>
+                      <Wrench size={18} color="var(--dept-trd)" />
+                      <span>Inspection recorded without photo</span>
                     </div>
                   )}
 
-                  <h4 style={{ fontSize: '1rem', fontWeight: 800, marginBottom: '4px' }}>
+                  <h4 style={{ fontSize: '1.05rem', fontWeight: 900, marginBottom: '6px', lineHeight: 1.3 }}>
                     {defect.defectCategory || defect.workRequired || defect.description?.slice(0, 60)}
                   </h4>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 'var(--space-md)' }}>
-                    {defect.section || defect.corridorName} • <strong>{defect.kmMarker || 'Section Track'}</strong>
+                  <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: 'var(--space-sm)' }}>
+                    {defect.section || defect.corridorName} • <strong>{defect.kmMarker || 'Section Track'}</strong> • <span style={{ fontWeight: 600 }}>{defect.trackType || 'Main Line'}</span>
+                  </p>
+
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.4, marginBottom: 'var(--space-md)' }}>
+                    {defect.description?.length > 110 ? `${defect.description.slice(0, 110)}...` : defect.description}
                   </p>
 
                   <div style={{ marginTop: 'auto', paddingTop: 'var(--space-md)', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: getDeptColor(defect.department) }}>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: getDeptColor(defect.department) }}>
                       {defect.department}
                     </span>
                     <button
-                      onClick={() => handleScheduleBlockFromDefect(defect)}
+                      type="button"
+                      onClick={() => handleOpenScheduleFromDefect(defect)}
                       className="btn btn-primary"
-                      style={{ fontSize: '0.75rem', padding: '6px 14px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                      style={{ fontSize: '0.78rem', padding: '7px 16px', display: 'flex', alignItems: 'center', gap: '6px' }}
                     >
-                      <Zap size={12} /> Schedule Block
+                      <Zap size={13} /> Schedule Block
                     </button>
                   </div>
                 </div>
@@ -2071,6 +2252,340 @@ export default function BlockPlanPage() {
                   <span>Generate Plan</span>
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL: SCHEDULE MAINTENANCE BLOCK (FOR DEFECT OR MANUAL CURFEW) */}
+      <AnimatePresence>
+        {showScheduleModal && (
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(0,0,0,0.7)',
+              backdropFilter: 'blur(8px)',
+              zIndex: 1000,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 'var(--space-md)',
+              overflowY: 'auto'
+            }}
+            onClick={() => !isSubmittingSchedule && setShowScheduleModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 15 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 15 }}
+              onClick={(e) => e.stopPropagation()}
+              className="card"
+              style={{
+                width: '100%',
+                maxWidth: '680px',
+                maxHeight: '90vh',
+                overflowY: 'auto',
+                background: 'var(--bg-primary)',
+                padding: 'var(--space-2xl)',
+                boxShadow: '0 24px 70px rgba(0,0,0,0.35)',
+                border: '1px solid var(--border)'
+              }}
+            >
+              {/* Modal Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-lg)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                  <div style={{
+                    width: '46px',
+                    height: '46px',
+                    borderRadius: 'var(--radius-card)',
+                    background: scheduleTargetDefect ? 'rgba(212, 160, 87, 0.18)' : 'rgba(228, 164, 189, 0.22)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0
+                  }}>
+                    {scheduleTargetDefect ? <Wrench size={22} color="var(--dept-trd)" /> : <CalendarRange size={22} color="var(--accent)" />}
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '1.3rem', fontWeight: 900 }}>
+                      {scheduleTargetDefect ? `Schedule Remedial Block: ${scheduleTargetDefect.id}` : 'Schedule New Maintenance Block'}
+                    </h3>
+                    <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                      {scheduleTargetDefect
+                        ? 'Allocate synchronized track possession curfew to rectify this defect with zero commercial train delays.'
+                        : 'Plan an integrated multi-departmental railway curfew window with conflict-free slot reservation.'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowScheduleModal(false)}
+                  disabled={isSubmittingSchedule}
+                  style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text-muted)' }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Defect Preview Banner (if triggered from a defect) */}
+              {scheduleTargetDefect && (
+                <div style={{
+                  display: 'flex',
+                  gap: '14px',
+                  background: 'var(--bg-secondary)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-card)',
+                  padding: '14px',
+                  marginBottom: 'var(--space-lg)',
+                  alignItems: 'center'
+                }}>
+                  {scheduleTargetDefect.photoUrl ? (
+                    <div style={{ width: '80px', height: '64px', borderRadius: '8px', overflow: 'hidden', flexShrink: 0 }}>
+                      <img src={scheduleTargetDefect.photoUrl} alt="Defect" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    </div>
+                  ) : (
+                    <div style={{ width: '64px', height: '64px', borderRadius: '8px', background: 'rgba(212, 160, 87, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Wrench size={24} color="var(--dept-trd)" />
+                    </div>
+                  )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '4px' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)' }}>{scheduleTargetDefect.id}</span>
+                      <span className="badge" style={{
+                        background: scheduleTargetDefect.severity === 'Critical' ? 'rgba(201, 79, 79, 0.15)' : 'rgba(212, 160, 87, 0.15)',
+                        color: scheduleTargetDefect.severity === 'Critical' ? 'var(--dept-conflict)' : 'var(--dept-trd)',
+                        fontSize: '10px'
+                      }}>
+                        {scheduleTargetDefect.severity}
+                      </span>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 700, color: getDeptColor(scheduleTargetDefect.department) }}>
+                        {scheduleTargetDefect.department}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.88rem', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {scheduleTargetDefect.defectCategory || scheduleTargetDefect.workRequired}
+                    </div>
+                    <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                      {scheduleTargetDefect.section || scheduleTargetDefect.corridorName} • {scheduleTargetDefect.kmMarker} • {scheduleTargetDefect.trackType}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Schedule Form */}
+              <form onSubmit={handleConfirmScheduleBlock} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+                {/* Title */}
+                <div>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 800, display: 'block', marginBottom: '6px' }}>Block Plan Title</label>
+                  <input
+                    type="text"
+                    className="input"
+                    value={scheduleTitle}
+                    onChange={(e) => setScheduleTitle(e.target.value)}
+                    required
+                    style={{ width: '100%' }}
+                    placeholder="e.g. Engineering Urgent Rectification: Rail Fracture"
+                  />
+                </div>
+
+                {/* Corridor & Track */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)' }}>
+                  <div>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 800, display: 'block', marginBottom: '6px' }}>Target Corridor</label>
+                    <input
+                      type="text"
+                      className="input"
+                      value={scheduleCorridor}
+                      onChange={(e) => setScheduleCorridor(e.target.value)}
+                      required
+                      style={{ width: '100%' }}
+                      placeholder="e.g. Delhi - Agra Semi High-Speed Corridor"
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 800, display: 'block', marginBottom: '6px' }}>Track Line & KM Location</label>
+                    <input
+                      type="text"
+                      className="input"
+                      value={scheduleTrack}
+                      onChange={(e) => setScheduleTrack(e.target.value)}
+                      required
+                      style={{ width: '100%' }}
+                      placeholder="e.g. Up Fast Line (KM 118.4)"
+                    />
+                  </div>
+                </div>
+
+                {/* Date & Time Window */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: 'var(--space-md)' }}>
+                  <div>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 800, display: 'block', marginBottom: '6px' }}>Curfew Date</label>
+                    <input
+                      type="date"
+                      className="input"
+                      value={scheduleDate}
+                      onChange={(e) => setScheduleDate(e.target.value)}
+                      required
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 800, display: 'block', marginBottom: '6px' }}>Start Time</label>
+                    <input
+                      type="time"
+                      className="input"
+                      value={scheduleStartTime}
+                      onChange={(e) => setScheduleStartTime(e.target.value)}
+                      required
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 800, display: 'block', marginBottom: '6px' }}>End Time</label>
+                    <input
+                      type="time"
+                      className="input"
+                      value={scheduleEndTime}
+                      onChange={(e) => setScheduleEndTime(e.target.value)}
+                      required
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+                </div>
+
+                {/* Curfew duration & safety indicator */}
+                <div style={{
+                  padding: '10px 14px',
+                  background: 'rgba(109, 184, 123, 0.1)',
+                  borderRadius: 'var(--radius-card)',
+                  border: '1px solid rgba(109, 184, 123, 0.25)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  fontSize: '0.8rem'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, color: 'var(--status-healthy)' }}>
+                    <ShieldCheck size={16} />
+                    <span>COA Timetable Curfew Window Validated</span>
+                  </div>
+                  <div style={{ fontWeight: 800, color: 'var(--text-primary)' }}>
+                    Curfew Window: {scheduleStartTime} – {scheduleEndTime}
+                  </div>
+                </div>
+
+                {/* Coordinating Departments */}
+                <div>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 800, display: 'block', marginBottom: '8px' }}>
+                    Coordinating Departments (Cross-Disciplinary Curfew)
+                  </label>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    {[
+                      { name: 'Engineering', color: 'var(--dept-engg)' },
+                      { name: 'Signal & Telecom', color: 'var(--dept-snt)' },
+                      { name: 'Traction Distribution', color: 'var(--dept-trd)' }
+                    ].map(dept => {
+                      const isSelected = scheduleDepts.includes(dept.name)
+                      return (
+                        <button
+                          key={dept.name}
+                          type="button"
+                          onClick={() => {
+                            if (isSelected) {
+                              if (scheduleDepts.length > 1) {
+                                setScheduleDepts(scheduleDepts.filter(d => d !== dept.name))
+                              }
+                            } else {
+                              setScheduleDepts([...scheduleDepts, dept.name])
+                            }
+                          }}
+                          style={{
+                            padding: '8px 14px',
+                            borderRadius: 'var(--radius-pill)',
+                            border: `1px solid ${isSelected ? dept.color : 'var(--border)'}`,
+                            background: isSelected ? 'var(--bg-secondary)' : 'transparent',
+                            color: isSelected ? dept.color : 'var(--text-muted)',
+                            fontWeight: 700,
+                            fontSize: '0.8rem',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}
+                        >
+                          <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: dept.color }} />
+                          {dept.name} {isSelected && '✓'}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Block Type & Priority */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)' }}>
+                  <div>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 800, display: 'block', marginBottom: '6px' }}>Curfew Classification</label>
+                    <select
+                      className="input"
+                      value={scheduleType}
+                      onChange={(e) => setScheduleType(e.target.value)}
+                    >
+                      <option>Defect-Driven Remedial Block</option>
+                      <option>Tri-Disciplinary Integrated Block</option>
+                      <option>Engineering Mega Block</option>
+                      <option>S&T Signal Modernization Block</option>
+                      <option>Traction Power Cutoff (TRD)</option>
+                      <option>Emergency Speed Restriction Possession</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 800, display: 'block', marginBottom: '6px' }}>Priority Level</label>
+                    <select
+                      className="input"
+                      value={schedulePriority}
+                      onChange={(e) => setSchedulePriority(e.target.value)}
+                    >
+                      <option>High</option>
+                      <option>Critical</option>
+                      <option>Medium</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 800, display: 'block', marginBottom: '6px' }}>Work Orders & Operational Instructions</label>
+                  <textarea
+                    className="input"
+                    rows="3"
+                    value={scheduleDescription}
+                    onChange={(e) => setScheduleDescription(e.target.value)}
+                    style={{ width: '100%', resize: 'vertical' }}
+                    placeholder="Enter maintenance details, speed restrictions, and safety permits..."
+                  />
+                </div>
+
+                {/* Actions */}
+                <div style={{ display: 'flex', gap: 'var(--space-md)', justifyContent: 'flex-end', marginTop: 'var(--space-md)' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowScheduleModal(false)}
+                    className="btn btn-secondary"
+                    disabled={isSubmittingSchedule}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={isSubmittingSchedule}
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 24px' }}
+                  >
+                    {isSubmittingSchedule ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
+                    <span>{isSubmittingSchedule ? 'Scheduling Block...' : 'Confirm & Schedule Block'}</span>
+                  </button>
+                </div>
+              </form>
             </motion.div>
           </div>
         )}

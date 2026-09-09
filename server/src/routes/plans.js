@@ -33,8 +33,11 @@ router.get('/', async (req, res) => {
           conflictDetails: p.conflict_details || null,
           suggestedResolution: p.suggested_resolution || null
         }))
-        dataStore.blockPlans = plans
-        return res.json({ plans, source: 'Supabase Live DB' })
+        const supabasePlanIds = new Set(plans.map(p => p.id))
+        const remainingCached = dataStore.blockPlans.filter(p => !supabasePlanIds.has(p.id))
+        const combined = [...plans, ...remainingCached]
+        dataStore.blockPlans = combined
+        return res.json({ plans: combined, source: 'Supabase Live DB' })
       }
     } catch (err) {
       console.warn('[Supabase Plans Warning]:', err.message)
@@ -48,6 +51,117 @@ router.get('/:id', (req, res) => {
   const plan = dataStore.blockPlans.find(p => p.id === req.params.id)
   if (!plan) return res.status(404).json({ error: 'Plan not found' })
   res.json({ plan })
+})
+
+// Create new block plan (manual or defect-driven)
+router.post('/', async (req, res) => {
+  try {
+    const {
+      id,
+      title,
+      corridorId,
+      corridor,
+      track,
+      date,
+      startTime,
+      endTime,
+      duration,
+      departments = [],
+      status = 'Scheduled',
+      type = 'Defect-Driven Remedial Block',
+      priority = 'High',
+      efficiencyScore = '98.0%',
+      coordinationIndex = 'Joint Synchronized',
+      trainsImpacted = 0,
+      freightDiverted = 0,
+      aiOptimized = true,
+      description = '',
+      defectId
+    } = req.body
+
+    const planId = id || `BP-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`
+    const targetDate = date || new Date().toISOString().split('T')[0]
+
+    const newPlan = {
+      id: planId,
+      title: title || `Remedial Maintenance Block`,
+      corridorId: corridorId || 'CORR-GEN',
+      corridor: corridor || 'Delhi - Agra Semi High-Speed Corridor',
+      track: track || 'Up Fast Line',
+      date: targetDate,
+      startTime: startTime || '02:00',
+      endTime: endTime || '05:30',
+      duration: duration || '3h 30m',
+      departments: departments.length > 0 ? departments : ['Engineering'],
+      status: status || 'Scheduled',
+      type: type || 'Defect-Driven Remedial Block',
+      priority: priority || 'High',
+      efficiencyScore: efficiencyScore || '97.5%',
+      coordinationIndex: coordinationIndex || 'Joint Synchronized',
+      trainsImpacted: Number(trainsImpacted) || 0,
+      freightDiverted: Number(freightDiverted) || 0,
+      aiOptimized: Boolean(aiOptimized),
+      description: description || ''
+    }
+
+    // Save to in-memory dataStore
+    dataStore.blockPlans.unshift(newPlan)
+
+    // Save to Supabase if configured
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        const { error: insertError } = await supabase.from('block_plans').insert([{
+          id: newPlan.id,
+          title: newPlan.title,
+          corridor_id: newPlan.corridorId,
+          corridor: newPlan.corridor,
+          track: newPlan.track,
+          start_time: newPlan.startTime,
+          end_time: newPlan.endTime,
+          duration: newPlan.duration,
+          departments: newPlan.departments,
+          tasks: [],
+          efficiency_score: newPlan.efficiencyScore,
+          coordination_index: newPlan.coordinationIndex,
+          ai_optimized: newPlan.aiOptimized,
+          status: newPlan.status,
+          trains_impacted: newPlan.trainsImpacted,
+          type: newPlan.type
+        }])
+        if (insertError) {
+          console.warn('[Supabase Plan Insert Warning]:', insertError.message)
+        } else {
+          console.log(`[Supabase Plan Insert Success]: Created block plan ${newPlan.id}`)
+        }
+      } catch (sbErr) {
+        console.warn('[Supabase Plan Insert Exception]:', sbErr.message)
+      }
+    }
+
+    // If linked to a defect, update defect status to 'Block Scheduled'
+    if (defectId) {
+      const defect = dataStore.defects.find(d => d.id === defectId)
+      if (defect) {
+        defect.status = 'Block Scheduled'
+      }
+      if (isSupabaseConfigured() && supabase) {
+        try {
+          const { error: defError } = await supabase.from('defects').update({ status: 'Block Scheduled' }).eq('id', defectId)
+          if (defError) {
+            console.warn('[Supabase Defect Update Warning]:', defError.message)
+          } else {
+            console.log(`[Supabase Defect Status]: Marked ${defectId} as Block Scheduled`)
+          }
+        } catch (sbErr) {
+          console.warn('[Supabase Defect Update Exception]:', sbErr.message)
+        }
+      }
+    }
+
+    res.status(201).json({ success: true, message: `Block plan ${newPlan.id} created and scheduled.`, plan: newPlan })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
 })
 
 router.post('/generate', async (req, res) => {
