@@ -1,125 +1,213 @@
-# RailLink — AI-Powered Automatic Block Planning & Corridor Optimization
+<p align="center">
+  <img src="https://img.shields.io/badge/RailLink-AI%20Powered-blue?style=for-the-badge&logo=train&logoColor=white" alt="RailLink"/>
+  <img src="https://img.shields.io/badge/Indian%20Railways-Block%20Planning-orange?style=for-the-badge" alt="Indian Railways"/>
+  <img src="https://img.shields.io/badge/Status-Live-brightgreen?style=for-the-badge" alt="Status"/>
+</p>
 
-RailLink is an intelligent corridor block planning, timetable deconfliction, and track maintenance coordination platform engineered for Indian Railways.
+<h1 align="center">🚆 RailLink</h1>
+<h3 align="center">AI-Powered Automatic Block Planning & Defect Management for Indian Railways</h3>
+
+<p align="center">
+  <strong>Smarter maintenance. Safer tracks. Faster decisions.</strong>
+</p>
 
 ---
 
-## 🌟 Key Features
+## 📸 Screenshots
 
-- **Leaflet & MapTiler Vector / Satellite Geographic Picker**: Live dynamic area snapping (yard vs block section, track line identification, KM marker estimation).
-- **AI Multi-Disciplinary Curfew Optimizer**: Synchronizes Engineering, S&T (Signal & Telecom), and TRD (Traction Distribution) maintenance windows to minimize traffic disruption.
-- **OR-Tools Constraint Solver**: Validates curfew windows against live passenger timetables with zero commercial train delays.
-- **Track Defect Management**: Defect logging with image inspection powered by Cloudinary and jurisdiction tracking.
-- **Pointy-Roundish 4px Precision Geometry UI**: Designed for high clarity, dark/light mode responsiveness, and quick field operation.
+> Place your screenshot images inside a `/screenshots` folder and they will appear here.
+
+| Dashboard | Interactive Map |
+|-----------|----------------|
+| ![Dashboard](./screenshots/dashboard.png) | ![Map](./screenshots/map.png) |
+
+| Block Plans | Defect Reporting |
+|-------------|-----------------|
+| ![Plans](./screenshots/plans.png) | ![Defects](./screenshots/defects.png) |
+
+| Analytics | AI Studio |
+|-----------|-----------|
+| ![Analytics](./screenshots/analytics.png) | ![AI Studio](./screenshots/ai-studio.png) |
 
 ---
 
-## 🚀 Deploying to Render (render.com)
+## 🎯 What is RailLink?
 
-RailLink is configured for full-stack deployment on **Render** as a unified Web Service (Express API + Vite React Frontend) with zero CORS overhead.
+Indian Railways manages maintenance on over **68,000 kilometers** of track daily. Engineers schedule maintenance blocks and inspectors report defects — traditionally done manually, with paper forms and phone calls.
 
-### Step 1: Push Repository to GitHub
-Ensure the project is pushed to your GitHub repository:
-```bash
-git remote add origin https://github.com/nonsense3/RailLink.git
-git branch -M main
-git push -u origin main
+**RailLink** digitizes and automates this entire process. It brings block planning, defect tracking, AI-powered photo analysis, and real-time analytics into a single intelligent platform — designed specifically for the scale and complexity of Indian Railways operations.
+
+---
+
+## ✨ Key Features
+
+| Feature | Description |
+|---------|-------------|
+| 🗺️ **Interactive Railway Map** | Live section status across India with clickable stations |
+| 📋 **AI Block Planning** | Auto-generate optimized maintenance block plans using Gemini AI |
+| 📷 **AI Defect Reporting** | Upload a photo → AI auto-fills defect type, severity & recommendations |
+| 📊 **Analytics Dashboard** | Real-time defect trends, block completion rates, section health scores |
+| 🤖 **AI Studio** | Natural language queries for intelligent track insights |
+| 👥 **Role-Based Access** | Admin, Supervisor, and Inspector roles with granular permissions |
+
+---
+
+## 🛠️ Tech Stack
+
+### Frontend
+![React](https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react)
+![Vite](https://img.shields.io/badge/Vite-5-646CFF?style=flat-square&logo=vite)
+![React Router](https://img.shields.io/badge/React%20Router-6-CA4245?style=flat-square&logo=reactrouter)
+![Leaflet](https://img.shields.io/badge/Leaflet-Maps-199900?style=flat-square)
+![Zustand](https://img.shields.io/badge/Zustand-State-orange?style=flat-square)
+
+### Backend
+![Node.js](https://img.shields.io/badge/Node.js-18-339933?style=flat-square&logo=node.js)
+![Express](https://img.shields.io/badge/Express-4-000000?style=flat-square&logo=express)
+
+### Database & Auth
+![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL%20%2B%20Auth-3ECF8E?style=flat-square&logo=supabase)
+
+### 📸 Media Storage
+
+<div align="center">
+
+## ☁️ CLOUDINARY
+### Media Upload · Storage · CDN Delivery · AI-Ready Image Processing
+
+[![Cloudinary](https://img.shields.io/badge/CLOUDINARY-Media%20%7C%20Storage%20%7C%20CDN-3448C5?style=for-the-badge&logo=cloudinary&logoColor=white)](https://cloudinary.com)
+
+> Every defect inspection photo is **uploaded, optimized, and globally delivered** through Cloudinary.
+> Cloudinary powers the mandatory photo evidence system in RailLink — enabling instant Gemini AI vision analysis on every defect submitted.
+
+</div>
+
+### AI
+![Google Gemini](https://img.shields.io/badge/Google%20Gemini%20AI-Vision%20%2B%20Text-4285F4?style=flat-square&logo=google)
+
+### Deployment
+![Render](https://img.shields.io/badge/Render-Deployed-46E3B7?style=flat-square&logo=render)
+
+---
+
+## 🏗️ Project Architecture
+
+```
+RailLink/
+├── client/                  # React + Vite Frontend
+│   ├── src/
+│   │   ├── pages/           # Dashboard, Map, Plans, Defects, Analytics, AI Studio, Admin
+│   │   ├── components/      # Navbar, Sidebar, shared UI
+│   │   ├── store/           # Zustand global state management
+│   │   └── lib/             # Railway location data, utilities
+│   └── vite.config.js
+│
+├── server/                  # Node.js + Express API Gateway
+│   ├── src/
+│   │   ├── routes/          # auth, defects, plans, sections, analytics, ai, upload
+│   │   ├── services/        # Supabase, Cloudinary, Gemini integrations
+│   │   └── app.js           # Express app + static file serving (SPA)
+│   └── package.json
+│
+├── render.yaml              # One-click Render deployment config
+├── SETUP_SUPABASE_ALL_IN_ONE.sql
+└── package.json             # Monorepo root scripts
 ```
 
-### Step 2: Create Web Service on Render
-1. Log in to your [Render Dashboard](https://dashboard.render.com).
-2. Click **New +** and select **Web Service**.
-3. Choose **Build and deploy from a Git repository** and connect your **`RailLink`** repository.
-4. Configure the service settings:
-   - **Name**: `raillink` (or any name you choose)
-   - **Region**: Closest to your users (e.g., Singapore / Frankfurt)
-   - **Branch**: `main`
-   - **Root Directory**: Leave blank (defaults to root `.`)
-   - **Environment**: `Node`
-   - **Build Command**: `npm run build`
-   - **Start Command**: `npm start`
-   - **Instance Type**: `Free`
-
-### Step 3: Add Environment Variables in Render
-In the **Environment** section of your Render Web Service settings, add the following key-value pairs:
-
-| Key | Description | Source / Where to get |
-|---|---|---|
-| `PORT` | Service Port | `10000` (Render default) |
-| `NODE_ENV` | Runtime Environment | `production` |
-| `VITE_API_URL` | Frontend API URL | `/api` |
-| `SUPABASE_URL` | Supabase Project URL | Supabase Dashboard > Project Settings > API |
-| `SUPABASE_ANON_KEY` | Supabase Public Anon Key | Supabase Dashboard > Project Settings > API |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase Service Role Secret Key | Supabase Dashboard > Project Settings > API |
-| `VITE_SUPABASE_URL` | Supabase Project URL (Client) | Same as `SUPABASE_URL` |
-| `VITE_SUPABASE_ANON_KEY` | Supabase Anon Key (Client) | Same as `SUPABASE_ANON_KEY` |
-| `CLOUDINARY_CLOUD_NAME` | Cloudinary Cloud Name | [Cloudinary Dashboard](https://cloudinary.com) |
-| `CLOUDINARY_API_KEY` | Cloudinary API Key | Cloudinary Dashboard |
-| `CLOUDINARY_API_SECRET` | Cloudinary API Secret | Cloudinary Dashboard |
-| `RAPIDAPI_KEY` | Indian Railways IRCTC API Key | RapidAPI Dashboard |
-| `RAPIDAPI_HOST` | RapidAPI IRCTC Host | `indian-railway-irctc.p.rapidapi.com` |
-| `MAPTILER_API_KEY` | MapTiler Map Vector / Satellite Key | [cloud.maptiler.com](https://cloud.maptiler.com) |
-| `VITE_MAPTILER_API_KEY` | MapTiler Key for Frontend | Same as `MAPTILER_API_KEY` |
-| `GEMINI_API_KEY` | Google Gemini AI Key (Backend) | [aistudio.google.com](https://aistudio.google.com) |
-| `VITE_GEMINI_API_KEY` | Google Gemini AI Key (Frontend) | Same as `GEMINI_API_KEY` |
-
-5. Click **Create Web Service**. Render will automatically build the client, install server dependencies, and start the application.
-
 ---
 
-## 🗄️ Setting Up Supabase Database
+## 🚀 Local Setup
 
-1. Log in to [Supabase](https://supabase.com).
-2. Create or open your project.
-3. In the left navigation, click **SQL Editor**.
-4. Open the file `SETUP_SUPABASE_ALL_IN_ONE.sql` from this repository.
-5. Copy the entire SQL script and paste it into the Supabase SQL Editor.
-6. Click **Run**. This will:
-   - Create tables: `defects`, `block_plans`, `corridors`, `profiles`.
-   - Seed sample corridors, defects, and block schedules.
-   - Configure public read/write Row Level Security (RLS) policies.
-7. Go to **Project Settings > API**:
-   - Copy **Project URL** ➔ `SUPABASE_URL` & `VITE_SUPABASE_URL`
-   - Copy **anon public** key ➔ `SUPABASE_ANON_KEY` & `VITE_SUPABASE_ANON_KEY`
-   - Copy **service_role secret** key ➔ `SUPABASE_SERVICE_ROLE_KEY`
+### Prerequisites
+- Node.js 18+
+- Supabase account → [supabase.com](https://supabase.com)
+- Cloudinary account → [cloudinary.com](https://cloudinary.com)
+- Google Gemini API key → [ai.google.dev](https://ai.google.dev)
 
----
-
-## ☁️ Setting Up Cloudinary (Photo Inspections)
-
-1. Log in to [Cloudinary](https://cloudinary.com).
-2. On your **Dashboard**, copy:
-   - **Cloud Name** ➔ `CLOUDINARY_CLOUD_NAME`
-   - **API Key** ➔ `CLOUDINARY_API_KEY`
-   - **API Secret** ➔ `CLOUDINARY_API_SECRET`
-3. When field inspectors upload photos of rail defects, RailLink securely streams them to your Cloudinary storage and records the image URL in Supabase.
-
----
-
-## 💻 Local Development Setup
-
-### 1. Clone the repository
+### 1. Clone the repo
 ```bash
 git clone https://github.com/nonsense3/RailLink.git
 cd RailLink
 ```
 
-### 2. Configure Environment Files
-- Create `server/.env` with your Supabase, Cloudinary, and AI keys.
-- Create `client/.env` with your frontend keys (`VITE_API_URL=http://localhost:3001/api`, etc.).
-
-### 3. Run Backend Server
+### 2. Install dependencies
 ```bash
-cd server
 npm install
+cd client && npm install && cd ..
+cd server && npm install && cd ..
+```
+
+### 3. Set up environment variables
+
+**`server/.env`**
+```env
+PORT=5000
+NODE_ENV=development
+SUPABASE_URL=your_supabase_url
+SUPABASE_ANON_KEY=your_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+GEMINI_API_KEY=your_gemini_key
+MAPTILER_API_KEY=your_maptiler_key
+```
+
+**`client/.env`**
+```env
+VITE_API_URL=http://localhost:5000/api
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_anon_key
+VITE_MAPTILER_API_KEY=your_maptiler_key
+VITE_GEMINI_API_KEY=your_gemini_key
+```
+
+### 4. Set up the database
+Run the SQL file in your Supabase SQL editor:
+```
+SETUP_SUPABASE_ALL_IN_ONE.sql
+```
+
+### 5. Start development
+```bash
 npm run dev
 ```
 
-### 4. Run Frontend Client
-```bash
-cd client
-npm install
-npm run dev
-```
+App runs at → `http://localhost:5173`
 
-Visit `http://localhost:5173` to explore the dashboard.
+---
+
+## ☁️ Deploy to Render
+
+1. Push to GitHub
+2. Go to [render.com](https://render.com) → New → Blueprint
+3. Connect your repo — Render auto-reads `render.yaml`
+4. Select **`raillink-app`** (Web Service)
+5. Add all environment variables in the Render dashboard
+6. Click **Deploy**
+
+The Express server serves both the API and the built React SPA — no separate static site needed. All routes (including `/admin`, `/map`, `/defects`) work correctly on refresh.
+
+---
+
+## 👥 Team Members
+
+| Name | Role | GitHub |
+|------|------|--------|
+| **[Your Name]** | Full Stack Lead | [@handle](https://github.com/handle) |
+| **[Member 2]** | Backend & Database | [@handle](https://github.com/handle) |
+| **[Member 3]** | Frontend & UI/UX | [@handle](https://github.com/handle) |
+| **[Member 4]** | AI & Analytics | [@handle](https://github.com/handle) |
+
+---
+
+## 📄 License
+
+Built for educational and hackathon demonstration purposes.
+
+---
+
+<p align="center">
+  Built with ❤️ for Indian Railways<br/>
+  Powered by <strong>Google Gemini AI</strong> · <strong>Cloudinary</strong> · <strong>Supabase</strong> · <strong>Render</strong>
+</p>
