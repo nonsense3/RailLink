@@ -87,15 +87,64 @@ export default function InteractiveLocationMapPicker({
   const searchBoxRef = useRef(null)
 
   // Keep internal states in sync with incoming props
+  const lastLocationPropRef = useRef(location)
+  const lastDivisionPropRef = useRef(division)
+
   useEffect(() => {
     if (trackLine && trackLine !== selectedTrack) {
       setSelectedTrack(trackLine)
     }
   }, [trackLine])
 
+  // Sync when parent changes division or corridor (e.g. from dropdown or quick jump)
+  useEffect(() => {
+    if (division && division !== lastDivisionPropRef.current) {
+      lastDivisionPropRef.current = division
+      // Find primary station associated with this division
+      const matchedStation = RAILWAY_STATIONS.find(s => s.division === division) ||
+                             (corridor ? RAILWAY_STATIONS.find(s => s.corridor === corridor) : null)
+      if (matchedStation) {
+        setSelectedStation(matchedStation)
+        setSearchQuery(matchedStation.name)
+        lastLocationPropRef.current = matchedStation.name
+        setFlyTarget([matchedStation.lat, matchedStation.lng])
+        setCurrentCoords([matchedStation.lat, matchedStation.lng])
+        setMapZoom(13)
+
+        const supported = matchedStation.supportedLines || []
+        if (supported.length > 0 && !supported.includes(selectedTrack)) {
+          setSelectedTrack(supported[0])
+          if (onTrackLineChange) onTrackLineChange(supported[0])
+        }
+      }
+    }
+  }, [division, corridor, selectedTrack, onTrackLineChange])
+
+  // Sync when parent changes location text directly
+  useEffect(() => {
+    if (location && location !== lastLocationPropRef.current) {
+      lastLocationPropRef.current = location
+      setSearchQuery(location)
+
+      const matched = RAILWAY_STATIONS.find(s =>
+        s.name.toLowerCase() === location.toLowerCase() ||
+        location.toLowerCase().includes(s.name.toLowerCase()) ||
+        (s.code && location.toUpperCase().includes(s.code))
+      )
+      if (matched && (matched.lat !== currentCoords[0] || matched.lng !== currentCoords[1])) {
+        setSelectedStation(matched)
+        setFlyTarget([matched.lat, matched.lng])
+        setCurrentCoords([matched.lat, matched.lng])
+        if (matched.division) lastDivisionPropRef.current = matched.division
+      }
+    }
+  }, [location, currentCoords])
+
   // Ensure an initial valid selection is propagated to parent on mount
   useEffect(() => {
     if (!location && initialStation) {
+      lastLocationPropRef.current = initialStation.name
+      lastDivisionPropRef.current = initialStation.division
       if (onLocationChange) onLocationChange(initialStation.name)
       if (onDivisionChange) onDivisionChange(initialStation.division)
       if (onCorridorChange) onCorridorChange(initialStation.corridor)
@@ -186,8 +235,12 @@ export default function InteractiveLocationMapPicker({
 
       // Only notify parent form components on moveend (final) to avoid excessive re-renders
       if (isFinal) {
+        lastLocationPropRef.current = areaLocationName
+        const nextDiv = nearestStn.division || nearestCorr?.division
+        if (nextDiv) lastDivisionPropRef.current = nextDiv
+
         if (onLocationChange) onLocationChange(areaLocationName)
-        if (onDivisionChange) onDivisionChange(nearestStn.division || nearestCorr?.division)
+        if (nextDiv && onDivisionChange) onDivisionChange(nextDiv)
         if (onCorridorChange) onCorridorChange(nearestStn.corridor || nearestCorr?.name)
         if (onKmMarkerChange) onKmMarkerChange(computedKm)
         if (onTrackLineChange) onTrackLineChange(selectedTrack)
@@ -206,6 +259,9 @@ export default function InteractiveLocationMapPicker({
 
     const lineToUse = (stn.supportedLines && stn.supportedLines.length > 0) ? stn.supportedLines[0] : selectedTrack
     setSelectedTrack(lineToUse)
+
+    lastLocationPropRef.current = stn.name
+    if (stn.division) lastDivisionPropRef.current = stn.division
 
     if (onLocationChange) onLocationChange(stn.name)
     if (onDivisionChange) onDivisionChange(stn.division)
@@ -226,12 +282,22 @@ export default function InteractiveLocationMapPicker({
       if (nearestStn) {
         setSelectedStation(nearestStn)
         setSearchQuery(nearestStn.name)
+        lastLocationPropRef.current = nearestStn.name
+        if (nearestStn.division) lastDivisionPropRef.current = nearestStn.division
+
         if (onLocationChange) onLocationChange(nearestStn.name)
         if (onKmMarkerChange) onKmMarkerChange(nearestStn.defaultKm || 'KM ---')
+        if (nearestStn.supportedLines && nearestStn.supportedLines.length > 0) {
+          setSelectedTrack(nearestStn.supportedLines[0])
+          if (onTrackLineChange) onTrackLineChange(nearestStn.supportedLines[0])
+        }
       }
 
       if (onCorridorChange) onCorridorChange(c.name)
-      if (onDivisionChange) onDivisionChange(c.division)
+      if (c.division) {
+        lastDivisionPropRef.current = c.division
+        if (onDivisionChange) onDivisionChange(c.division)
+      }
     }
   }
 

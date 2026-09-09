@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 <img width="2048" height="768" alt="ChatGPT Image Sep 9, 2026, 12_22_16 PM" src="https://github.com/user-attachments/assets/76fdd7a2-ce5b-4f51-be63-7a5811c484d3" />
 <h1 align="center">🚆 RAILLINK</h1>
 <h3 align="center">AI-Powered Automatic Block Planning & Defect Management for Indian Railways</h3>
@@ -5,11 +6,23 @@
   <p align="center">
   <strong>Smarter maintenance. Safer tracks. Faster decisions.</strong>
 </p>
+=======
+<p align="center">
+>>>>>>> 953445d (Fix dynamic location synchronization and add bold techstack badges to README)
   <img src="https://img.shields.io/badge/RailLink-AI%20Powered-blue?style=for-the-badge&logo=train&logoColor=white" alt="RailLink"/>
   <img src="https://img.shields.io/badge/Indian%20Railways-Block%20Planning-orange?style=for-the-badge" alt="Indian Railways"/>
   <img src="https://img.shields.io/badge/Status-Live-brightgreen?style=for-the-badge" alt="Status"/>
 </p>
 
+<<<<<<< HEAD
+=======
+<h1 align="center">🚆 RailLink</h1>
+<h3 align="center">AI-Powered Automatic Block Planning & Defect Management for Indian Railways</h3>
+
+<p align="center">
+  <strong>Smarter maintenance. Safer tracks. Faster decisions.</strong>
+</p>
+>>>>>>> 953445d (Fix dynamic location synchronization and add bold techstack badges to README)
 
 ---
 
@@ -137,6 +150,40 @@ cd client && npm install && cd ..
 cd server && npm install && cd ..
 ```
 
+<<<<<<< HEAD
+=======
+### 3. Set up environment variables
+
+**`server/.env`**
+```env
+PORT=5000
+NODE_ENV=development
+SUPABASE_URL=your_supabase_url
+SUPABASE_ANON_KEY=your_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+GEMINI_API_KEY=your_gemini_key
+MAPTILER_API_KEY=your_maptiler_key
+```
+
+**`client/.env`**
+```env
+VITE_API_URL=http://localhost:5000/api
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_anon_key
+VITE_MAPTILER_API_KEY=your_maptiler_key
+VITE_GEMINI_API_KEY=your_gemini_key
+```
+
+### 4. Set up the database
+Run the SQL file in your Supabase SQL editor:
+```
+SETUP_SUPABASE_ALL_IN_ONE.sql
+```
+
+>>>>>>> 953445d (Fix dynamic location synchronization and add bold techstack badges to README)
 ### 5. Start development
 ```bash
 npm run dev

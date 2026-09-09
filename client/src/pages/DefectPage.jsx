@@ -4,6 +4,7 @@ import RevealWrapper from '../components/layout/RevealWrapper'
 import api from '../lib/api'
 import LocationAutocomplete from '../components/ui/LocationAutocomplete'
 import InteractiveLocationMapPicker from '../components/ui/InteractiveLocationMapPicker'
+import { RAILWAY_STATIONS } from '../lib/railwayLocations'
 import {
   Wrench,
   AlertTriangle,
@@ -104,8 +105,8 @@ export default function DefectPage() {
   const [formSeverity, setFormSeverity] = useState('High')
   const [formDivision, setFormDivision] = useState('Northern Railway — Delhi Division (DLI)')
   const [formCorridor, setFormCorridor] = useState('Delhi - Agra Semi High-Speed Corridor (Sec 4)')
-  const [formLocation, setFormLocation] = useState('Mathura Junction (MTJ) North Yard')
-  const [formKmMarker, setFormKmMarker] = useState('KM 104.2')
+  const [formLocation, setFormLocation] = useState('New Delhi Railway Station (NDLS)')
+  const [formKmMarker, setFormKmMarker] = useState('KM 0.0')
   const [formTrackLine, setFormTrackLine] = useState('Up Main Line')
   const [formAssetCategory, setFormAssetCategory] = useState('Turnout 14A / Point & Crossing')
   const [formNotes, setFormNotes] = useState('')
@@ -113,6 +114,40 @@ export default function DefectPage() {
   const [selectedImagePreview, setSelectedImagePreview] = useState(null)
   const [photoError, setPhotoError] = useState(null)
   const fileInputRef = useRef(null)
+
+  // Explicit handler when Division changes — automatically updates corridor, landmark station, KM & track line
+  const handleDivisionChange = (newDivName) => {
+    setFormDivision(newDivName)
+    const matchedDiv = INDIAN_RAILWAY_DIVISIONS.find(d => d.name === newDivName)
+    const targetCorridor = matchedDiv?.defaultCorridor || formCorridor
+    if (matchedDiv?.defaultCorridor) {
+      setFormCorridor(matchedDiv.defaultCorridor)
+    }
+
+    const stn = RAILWAY_STATIONS.find(s => s.division === newDivName) ||
+                RAILWAY_STATIONS.find(s => s.corridor === targetCorridor)
+    if (stn) {
+      setFormLocation(stn.name)
+      setFormKmMarker(stn.defaultKm || 'KM 0.0')
+      if (stn.supportedLines && stn.supportedLines.length > 0) {
+        setFormTrackLine(stn.supportedLines[0])
+      }
+    }
+  }
+
+  // Explicit handler when Corridor changes
+  const handleCorridorChange = (newCorrName) => {
+    setFormCorridor(newCorrName)
+    const stn = RAILWAY_STATIONS.find(s => s.corridor === newCorrName)
+    if (stn) {
+      setFormLocation(stn.name)
+      setFormKmMarker(stn.defaultKm || 'KM 0.0')
+      if (stn.division) setFormDivision(stn.division)
+      if (stn.supportedLines && stn.supportedLines.length > 0) {
+        setFormTrackLine(stn.supportedLines[0])
+      }
+    }
+  }
 
   // Fetch live defects from backend/Supabase
   const loadLiveDefects = async () => {
@@ -911,10 +946,72 @@ export default function DefectPage() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <Train size={18} color="var(--accent)" />
                     <div>
-                      <span style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block' }}>Track Line</span>
-                      <span className="badge" style={{ background: 'var(--accent)', color: 'var(--text-primary)', fontWeight: 800 }}>{formTrackLine}</span>
+                      <span style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block' }}>Track Line (Click to cycle)</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const idx = TRACK_LINES.indexOf(formTrackLine)
+                          const nextLine = TRACK_LINES[(idx + 1) % TRACK_LINES.length]
+                          setFormTrackLine(nextLine)
+                        }}
+                        className="badge"
+                        title="Click to cycle track line"
+                        style={{
+                          background: 'var(--accent)',
+                          color: 'var(--text-primary)',
+                          fontWeight: 800,
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px'
+                        }}
+                      >
+                        <span>{formTrackLine}</span>
+                        <RefreshCw size={11} />
+                      </button>
                     </div>
                   </div>
+                </div>
+
+                {/* Quick Zone & Division Jump Chips */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflowX: 'auto', paddingBottom: '2px', scrollbarWidth: 'none' }}>
+                  <span style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', flexShrink: 0 }}>
+                    Quick Zone / Div:
+                  </span>
+                  {[
+                    { id: 'NR-DLI', label: 'Delhi (DLI)', name: 'Northern Railway — Delhi Division (DLI)' },
+                    { id: 'NCR-AGC', label: 'Agra (AGC)', name: 'North Central Railway — Agra Division (AGC)' },
+                    { id: 'CR-CSMT', label: 'Mumbai CR (CSMT)', name: 'Central Railway — Mumbai CR Division (CSMT)' },
+                    { id: 'CR-PUNE', label: 'Pune (PUNE)', name: 'Central Railway — Pune Division (PUNE)' },
+                    { id: 'ER-HWH', label: 'Howrah (HWH)', name: 'Eastern Railway — Howrah Division (HWH)' },
+                    { id: 'SR-MAS', label: 'Chennai (MAS)', name: 'Southern Railway — Chennai Division (MAS)' },
+                    { id: 'SWR-SBC', label: 'Bengaluru (SBC)', name: 'South Western Railway — Bengaluru Division (SBC)' },
+                    { id: 'SCR-SC', label: 'Secunderabad (SC)', name: 'South Central Railway — Secunderabad Division (SC)' }
+                  ].map(item => {
+                    const isSelected = formDivision === item.name
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => handleDivisionChange(item.name)}
+                        style={{
+                          padding: '3px 8px',
+                          borderRadius: 'var(--radius-card)',
+                          border: `1px solid ${isSelected ? 'var(--accent)' : 'var(--border)'}`,
+                          background: isSelected ? 'var(--accent)' : 'var(--bg-secondary)',
+                          color: isSelected ? 'var(--text-primary)' : 'var(--text-secondary)',
+                          fontSize: '0.7rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          flexShrink: 0
+                        }}
+                      >
+                        {item.label}
+                      </button>
+                    )
+                  })}
                 </div>
 
                 {/* Section 1: Division & Corridor */}
@@ -940,13 +1037,7 @@ export default function DefectPage() {
                       <select
                         className="input"
                         value={formDivision}
-                        onChange={e => {
-                          setFormDivision(e.target.value)
-                          const matched = INDIAN_RAILWAY_DIVISIONS.find(d => d.name === e.target.value)
-                          if (matched && matched.defaultCorridor) {
-                            setFormCorridor(matched.defaultCorridor)
-                          }
-                        }}
+                        onChange={e => handleDivisionChange(e.target.value)}
                       >
                         {INDIAN_RAILWAY_DIVISIONS.map(d => (
                           <option key={d.id} value={d.name}>{d.name}</option>
@@ -964,7 +1055,7 @@ export default function DefectPage() {
                       <input
                         className="input"
                         value={formCorridor}
-                        onChange={e => setFormCorridor(e.target.value)}
+                        onChange={e => handleCorridorChange(e.target.value)}
                         placeholder="e.g., Delhi - Agra Semi High-Speed Corridor (Sec 4)"
                         required
                       />

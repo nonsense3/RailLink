@@ -49,6 +49,7 @@ import api from '../lib/api'
 import LocationAutocomplete from '../components/ui/LocationAutocomplete'
 import InteractiveLocationMapPicker from '../components/ui/InteractiveLocationMapPicker'
 import { INDIAN_RAILWAY_DIVISIONS } from './DefectPage'
+import { RAILWAY_STATIONS } from '../lib/railwayLocations'
 
 const departmentsList = [
   { name: 'All Departments', code: 'ALL', color: 'var(--text-primary)' },
@@ -1444,9 +1445,21 @@ export default function BlockPlanPage() {
                     className="input"
                     value={defectFormDivision}
                     onChange={(e) => {
-                      setDefectFormDivision(e.target.value)
-                      const matched = INDIAN_RAILWAY_DIVISIONS.find(d => d.name === e.target.value)
+                      const newDiv = e.target.value
+                      setDefectFormDivision(newDiv)
+                      const matched = INDIAN_RAILWAY_DIVISIONS.find(d => d.name === newDiv)
+                      const targetCorridor = matched?.defaultCorridor || defectFormCorridor
                       if (matched?.defaultCorridor) setDefectFormCorridor(matched.defaultCorridor)
+
+                      const stn = RAILWAY_STATIONS.find(s => s.division === newDiv) ||
+                                  RAILWAY_STATIONS.find(s => s.corridor === targetCorridor)
+                      if (stn) {
+                        setDefectFormLocation(stn.name)
+                        setDefectFormKm(stn.defaultKm || 'KM 0.0')
+                        if (stn.supportedLines && stn.supportedLines.length > 0) {
+                          setDefectFormTrack(stn.supportedLines[0])
+                        }
+                      }
                     }}
                   >
                     {INDIAN_RAILWAY_DIVISIONS.map(d => (
