@@ -291,7 +291,7 @@ export default function DefectPage() {
 
   // Delete defect handler (wipes record from Supabase and photo from Cloudinary)
   const handleDeleteDefect = async (id, e) => {
-    if (e) e.stopPropagation()
+    if (e && e.stopPropagation) e.stopPropagation()
     const targetDefect = defects.find(d => d.id === id) || (selectedDefect?.id === id ? selectedDefect : null)
     const confirmDelete = window.confirm(`Permanently delete defect ${id} and its Cloudinary photo?`)
     if (!confirmDelete) return
@@ -301,22 +301,23 @@ export default function DefectPage() {
       setDefects(prev => prev.filter(d => d.id !== id))
       if (selectedDefect?.id === id) setSelectedDefect(null)
 
-      let deleted = false
+      // 1. Direct Supabase delete (guarantees DB record is wiped immediately)
       try {
-        await api.delete(`/defects/${id}`, { data: { photoUrl: targetDefect?.photoUrl } })
-        deleted = true
-      } catch (apiErr) {
-        console.warn('[API Delete Error]: Falling back to direct Supabase delete:', apiErr)
+        const { error: sbErr } = await supabase.from('defects').delete().eq('id', id)
+        if (sbErr) {
+          console.warn('[Supabase Direct Delete Warning]:', sbErr.message)
+        } else {
+          console.log(`[Supabase Delete Success]: Wiped defect ${id}`)
+        }
+      } catch (sbErr) {
+        console.warn('[Supabase Direct Delete Exception]:', sbErr)
       }
 
-      if (!deleted) {
-        await supabase.from('defects').delete().eq('id', id)
-        // Also call backend photo purge endpoint if available
-        if (targetDefect?.photoUrl) {
-          try {
-            await api.post('/defects/purge-photos', { photoUrls: [targetDefect.photoUrl] })
-          } catch {}
-        }
+      // 2. Call backend route to purge the photo from Cloudinary & clear in-memory state
+      try {
+        await api.delete(`/defects/${id}`, { data: { photoUrl: targetDefect?.photoUrl } })
+      } catch (apiErr) {
+        console.warn('[API Delete Error]:', apiErr?.message || apiErr)
       }
 
       await loadLiveDefects()

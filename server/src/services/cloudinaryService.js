@@ -19,17 +19,18 @@ export function getPublicIdFromUrl(photoUrl) {
   try {
     const uploadIndex = photoUrl.indexOf('/upload/')
     if (uploadIndex === -1) return null
-    let afterUpload = photoUrl.slice(uploadIndex + 8) // after '/upload/'
-    // Strip optional transformations or version prefix (e.g. 'v1725876543/')
-    afterUpload = afterUpload.replace(/^(?:[a-zA-Z0-9_,]+(?:\/[a-zA-Z0-9_,]+)*\/)?(?:v\d+\/)?/, '')
-    // Strip query parameters
-    afterUpload = afterUpload.split('?')[0]
+    let afterUpload = photoUrl.slice(uploadIndex + 8).split('?')[0]
+    
+    // Cloudinary URLs typically have /v1234567890/ before the public ID
+    const versionMatch = afterUpload.match(/(?:^|\/)v\d+\/(.+)$/)
+    let pathWithExt = versionMatch ? versionMatch[1] : afterUpload
+    
     // Strip file extension
-    const lastDot = afterUpload.lastIndexOf('.')
+    const lastDot = pathWithExt.lastIndexOf('.')
     if (lastDot !== -1) {
-      afterUpload = afterUpload.slice(0, lastDot)
+      return pathWithExt.slice(0, lastDot)
     }
-    return afterUpload || null
+    return pathWithExt || null
   } catch (err) {
     console.warn('[Cloudinary Public ID Parse Error]:', err.message)
     return null
