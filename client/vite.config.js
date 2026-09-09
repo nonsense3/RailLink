@@ -21,4 +21,7 @@ export default defineConfig({
       '@': '/src',
     },
   },
+  build: {
+    chunkSizeWarningLimit: 2500,
+  },
 })
