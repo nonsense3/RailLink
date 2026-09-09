@@ -118,6 +118,8 @@ export default function DefectPage() {
   const [formNotes, setFormNotes] = useState('')
   const [selectedImageBase64, setSelectedImageBase64] = useState(null)
   const [selectedImagePreview, setSelectedImagePreview] = useState(null)
+  const [selectedImageName, setSelectedImageName] = useState('')
+  const [selectedImageSize, setSelectedImageSize] = useState('')
   const [photoError, setPhotoError] = useState(null)
   const fileInputRef = useRef(null)
 
@@ -271,24 +273,47 @@ export default function DefectPage() {
     return matchDept && matchSev && matchDiv && matchSearch
   })
 
-  // Handle Photo selection from Desktop/Mobile with automatic client-side compression
-  const handlePhotoSelect = async (e) => {
+  // Process and compress chosen file with explicit metadata
+  const processSelectedFile = async (file) => {
+    if (!file) return
+    setPhotoError(null)
+    setSelectedImageName(file.name || 'Inspection Photo')
+    setSelectedImageSize(`${(file.size / 1024).toFixed(1)} KB`)
+    try {
+      const compressed = await compressImage(file)
+      setSelectedImageBase64(compressed)
+      setSelectedImagePreview(compressed)
+    } catch (err) {
+      console.warn('Image compression fallback to raw base64:', err)
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setSelectedImageBase64(reader.result)
+        setSelectedImagePreview(reader.result)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  // Handle Photo selection from file input
+  const handlePhotoSelect = (e) => {
     const file = e.target.files?.[0]
     if (file) {
-      setPhotoError(null)
-      try {
-        const compressed = await compressImage(file)
-        setSelectedImageBase64(compressed)
-        setSelectedImagePreview(compressed)
-      } catch (err) {
-        console.warn('Image compression fallback to raw base64:', err)
-        const reader = new FileReader()
-        reader.onloadend = () => {
-          setSelectedImageBase64(reader.result)
-          setSelectedImagePreview(reader.result)
-        }
-        reader.readAsDataURL(file)
-      }
+      processSelectedFile(file)
+    }
+  }
+
+  // Clear attached photo and reset input element
+  const clearSelectedPhoto = (e) => {
+    if (e) {
+      e.stopPropagation()
+      e.preventDefault()
+    }
+    setSelectedImageBase64(null)
+    setSelectedImagePreview(null)
+    setSelectedImageName('')
+    setSelectedImageSize('')
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
     }
   }
 
@@ -426,6 +451,11 @@ export default function DefectPage() {
       setUploadSuccess(true)
       setSelectedImageBase64(null)
       setSelectedImagePreview(null)
+      setSelectedImageName('')
+      setSelectedImageSize('')
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
 
       // Reload live list
       await loadLiveDefects()
@@ -719,27 +749,49 @@ export default function DefectPage() {
                     position: 'relative'
                   }}
                 >
-                  {/* Photo with grayscale to color hover & zoom */}
-                  <div style={{ height: '220px', overflow: 'hidden', position: 'relative' }}>
+                  {/* Photo in full natural inspection color */}
+                  <div style={{ height: '220px', overflow: 'hidden', position: 'relative', background: 'var(--bg-secondary)' }}>
                     <img
                       src={item.photoUrl}
                       alt={item.assetType}
+                      loading="lazy"
                       style={{
                         width: '100%',
                         height: '100%',
                         objectFit: 'cover',
-                        filter: 'grayscale(100%)',
-                        transition: 'transform 0.4s var(--ease-premium), filter 0.4s var(--ease-premium)'
+                        transition: 'transform 0.4s var(--ease-premium)'
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.filter = 'grayscale(0%)'
-                        e.currentTarget.style.transform = 'scale(1.08)'
+                        e.currentTarget.style.transform = 'scale(1.06)'
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.filter = 'grayscale(100%)'
                         e.currentTarget.style.transform = 'scale(1)'
                       }}
+                      onError={(e) => {
+                        e.currentTarget.src = 'https://images.unsplash.com/photo-1474487548417-781cb71495f3?auto=format&fit=crop&w=800&q=80'
+                      }}
                     />
+                    {/* Cloudinary CDN indicator badge */}
+                    {item.photoUrl && item.photoUrl.includes('cloudinary.com') && (
+                      <div style={{
+                        position: 'absolute',
+                        top: '12px',
+                        left: '12px',
+                        background: 'rgba(17, 23, 38, 0.85)',
+                        color: '#7dd3fc',
+                        border: '1px solid rgba(125, 211, 252, 0.4)',
+                        backdropFilter: 'blur(6px)',
+                        padding: '3px 8px',
+                        borderRadius: 'var(--radius-pill)',
+                        fontSize: '10px',
+                        fontWeight: 800,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}>
+                        <span>☁️ Cloudinary CDN</span>
+                      </div>
+                    )}
                     {/* Severity Badge over image */}
                     <div style={{
                       position: 'absolute',
@@ -1010,6 +1062,16 @@ export default function DefectPage() {
 
                 <div
                   onClick={() => fileInputRef.current?.click()}
+                  onDragOver={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    const file = e.dataTransfer.files?.[0]
+                    if (file) processSelectedFile(file)
+                  }}
                   style={{
                     border: photoError
                       ? '2px dashed var(--dept-conflict)'
@@ -1035,13 +1097,33 @@ export default function DefectPage() {
                       <img
                         src={selectedImagePreview}
                         alt="Upload Preview"
-                        style={{ maxHeight: '180px', margin: '0 auto 12px', borderRadius: '8px', objectFit: 'contain' }}
+                        style={{ maxHeight: '200px', margin: '0 auto 12px', borderRadius: '8px', objectFit: 'contain', border: '1.5px solid var(--status-healthy)' }}
                       />
-                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(109, 184, 123, 0.15)', color: 'var(--status-healthy)', padding: '4px 12px', borderRadius: 'var(--radius-card)', fontWeight: 800, fontSize: '0.85rem' }}>
-                        <CheckCircle2 size={16} color="var(--status-healthy)" />
-                        <span>Photo Attached · Ready for Inspection Submission</span>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(109, 184, 123, 0.15)', color: 'var(--status-healthy)', padding: '5px 14px', borderRadius: 'var(--radius-card)', fontWeight: 800, fontSize: '0.85rem' }}>
+                          <CheckCircle2 size={16} color="var(--status-healthy)" />
+                          <span>Photo Attached: {selectedImageName} {selectedImageSize ? `(${selectedImageSize})` : ''}</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Click area to replace</span>
+                          <button
+                            type="button"
+                            onClick={clearSelectedPhoto}
+                            style={{
+                              background: 'rgba(201, 79, 79, 0.12)',
+                              color: 'var(--dept-conflict)',
+                              border: '1px solid var(--dept-conflict)',
+                              padding: '2px 10px',
+                              borderRadius: '4px',
+                              fontSize: '0.75rem',
+                              fontWeight: 800,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            ✕ Remove Photo
+                          </button>
+                        </div>
                       </div>
-                      <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '6px' }}>Click to choose a different photo</p>
                     </div>
                   ) : (
                     <div>
@@ -1457,20 +1539,46 @@ export default function DefectPage() {
               </div>
 
               {/* Photo preview in modal */}
-              <div style={{ borderRadius: '16px', overflow: 'hidden', height: '260px', marginBottom: 'var(--space-lg)', position: 'relative' }}>
-                <img src={selectedDefect.photoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <div style={{ borderRadius: '16px', overflow: 'hidden', height: '280px', marginBottom: 'var(--space-lg)', position: 'relative', background: 'var(--bg-secondary)' }}>
+                <img
+                  src={selectedDefect.photoUrl}
+                  alt={selectedDefect.assetType}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  onError={(e) => {
+                    e.currentTarget.src = 'https://images.unsplash.com/photo-1474487548417-781cb71495f3?auto=format&fit=crop&w=800&q=80'
+                  }}
+                />
                 <div style={{
                   position: 'absolute',
                   bottom: '12px',
                   right: '12px',
-                  background: 'rgba(0,0,0,0.7)',
-                  color: '#fff',
-                  fontSize: '11px',
-                  padding: '4px 10px',
-                  borderRadius: '4px',
-                  backdropFilter: 'blur(4px)'
+                  display: 'flex',
+                  gap: '8px'
                 }}>
-                  Smart Media CDN · High-Resolution Inspection
+                  {selectedDefect.photoUrl && (
+                    <a
+                      href={selectedDefect.photoUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        background: 'rgba(17, 23, 38, 0.88)',
+                        color: '#7dd3fc',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        padding: '6px 12px',
+                        borderRadius: 'var(--radius-pill)',
+                        backdropFilter: 'blur(8px)',
+                        border: '1px solid rgba(125, 211, 252, 0.4)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        textDecoration: 'none'
+                      }}
+                    >
+                      <ExternalLink size={12} />
+                      <span>{selectedDefect.photoUrl.includes('cloudinary.com') ? 'View on Cloudinary CDN ↗' : 'View Full Image ↗'}</span>
+                    </a>
+                  )}
                 </div>
               </div>
 
