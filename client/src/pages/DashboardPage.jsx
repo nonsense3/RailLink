@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import RevealWrapper from '../components/layout/RevealWrapper'
 import api from '../lib/api'
+import { supabase } from '../lib/supabase'
 import {
   LayoutGrid,
   TrendingUp,
@@ -16,6 +17,7 @@ import {
   ArrowRight,
   Activity,
   Loader2,
+  RotateCcw,
 } from 'lucide-react'
 
 const iconMap = {
@@ -44,17 +46,39 @@ const timeSlots = ['00:00', '02:00', '04:00', '06:00', '08:00', '10:00', '12:00'
 export default function DashboardPage() {
   const [dashData, setDashData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+
+  const fetchDashboardData = async (showRefresh = false) => {
+    if (showRefresh) setRefreshing(true)
+    try {
+      const res = await api.get('/analytics/dashboard-summary')
+      if (res) setDashData(res)
+    } catch (err) {
+      console.error('Dashboard fetch error:', err)
+    } finally {
+      setLoading(false)
+      if (showRefresh) setRefreshing(false)
+    }
+  }
 
   useEffect(() => {
     setLoading(true)
-    api.get('/analytics/dashboard-summary')
-      .then((res) => {
-        setDashData(res)
+    fetchDashboardData()
+
+    // Realtime Supabase subscription: refresh metrics immediately when defects or block plans change
+    const channel = supabase
+      .channel('dashboard-metrics-realtime-channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'defects' }, () => {
+        fetchDashboardData()
       })
-      .catch((err) => {
-        console.error('Dashboard fetch error:', err)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'block_plans' }, () => {
+        fetchDashboardData()
       })
-      .finally(() => setLoading(false))
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [])
 
   if (loading) {
@@ -85,7 +109,16 @@ export default function DashboardPage() {
             </p>
           )}
         </div>
-        <div style={{ display: 'flex', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 'var(--space-md)', flexWrap: 'wrap', alignItems: 'center' }}>
+          <button
+            className="btn btn-secondary"
+            onClick={() => fetchDashboardData(true)}
+            disabled={refreshing}
+            title="Refresh metrics from Live DB"
+          >
+            <RotateCcw size={14} className={refreshing ? 'animate-spin' : ''} />
+            {refreshing ? 'Syncing...' : 'Sync Live'}
+          </button>
           <button className="btn btn-secondary">
             <Clock size={14} /> Last 7 Days
           </button>
@@ -161,10 +194,10 @@ export default function DashboardPage() {
                       key={i}
                       className={`gantt-block dept-${block.dept} ${block.conflict ? 'conflict' : ''}`}
                       style={{
-                        left: `${(block.start / 12) * 100}%`,
-                        width: `${(Math.max(0.5, block.end - block.start) / 12) * 100}%`,
+                        left: `${Math.max(0, Math.min(100, (block.start / 24) * 100))}%`,
+                        width: `${Math.max(1.5, Math.min(100 - (block.start / 24) * 100, ((block.end - block.start) / 24) * 100))}%`,
                       }}
-                      title={`${block.label} (${block.dept.toUpperCase()})`}
+                      title={`${block.label} (${block.dept.toUpperCase()}) [${block.start.toFixed(1)}h - ${block.end.toFixed(1)}h]`}
                     >
                       {block.label}
                     </div>

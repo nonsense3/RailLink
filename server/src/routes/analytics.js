@@ -26,9 +26,12 @@ router.get('/kpis', async (req, res) => {
       }
     }
 
-    const totalDefects = defects.length
-    const overdueDefects = defects.filter(d =>
-      (d.overdueDays || d.overdue_days || 0) > 0 || d.status === 'Overdue'
+    const approvedDefects = defects.filter(d => d.status !== 'Pending Approval' && d.status !== 'Rejected')
+    const totalApproved = approvedDefects.length
+    const scheduledDefects = approvedDefects.filter(d => d.status === 'Scheduled Block' || (d.work_required && d.work_required.startsWith('[Scheduled:')))
+    const pendingBlockDefects = approvedDefects.filter(d => d.status === 'Pending Block')
+    const overdueDefects = approvedDefects.filter(d =>
+      (d.overdueDays || d.overdue_days || 0) > 0 || d.status === 'Overdue' || d.severity === 'Critical'
     ).length
     const totalPlans = blockPlans.length
     const conflictsResolved = blockPlans.filter(p =>
@@ -42,12 +45,15 @@ router.get('/kpis', async (req, res) => {
     const healthyCorridors = corridors.length > 0 ? corridors.length : 4
     const availabilityPct = (((healthyCorridors - pendingConflicts) / healthyCorridors) * 100).toFixed(1)
 
+    const effectiveBlocksPlanned = totalPlans + approvedRequests
+
     res.json({
       assetAvailability: { value: `${availabilityPct}%`, trend: `${totalPlans} blocks active`, trendUp: true },
-      blocksPlanned: { value: totalPlans + blockRequests.length, trend: `${approvedRequests} approved`, trendUp: true },
-      overdueTasks: { value: overdueDefects, trend: `${totalDefects} total defects`, trendUp: overdueDefects < totalDefects },
-      conflictsResolved: { value: conflictsResolved, pending: pendingConflicts, trendUp: conflictsResolved > 0 },
-      totalDefects,
+      blocksPlanned: { value: effectiveBlocksPlanned, trend: pendingBlockDefects.length > 0 ? `${pendingBlockDefects.length} awaiting allocation` : `${effectiveBlocksPlanned} blocks active`, trendUp: true },
+      overdueTasks: { value: overdueDefects, trend: `${totalApproved} total approved`, trendUp: overdueDefects === 0 },
+      conflictsResolved: { value: conflictsResolved, pending: pendingConflicts, trendUp: pendingConflicts === 0 },
+      totalDefects: totalApproved,
+      totalPendingApproval: defects.filter(d => d.status === 'Pending Approval').length,
       totalBlockRequests: blockRequests.length,
       source: isSupabaseConfigured() ? 'Supabase Live DB' : 'RailLink DataStore'
     })
@@ -217,44 +223,54 @@ router.get('/dashboard-summary', async (req, res) => {
       }
     }
 
-    // KPIs
-    const totalDefects = defects.length
-    const overdueDefects = defects.filter(d => (d.overdueDays || d.overdue_days || 0) > 0).length
+    // Filter approved vs pending
+    const approvedDefects = defects.filter(d => d.status !== 'Pending Approval' && d.status !== 'Rejected')
+    const pendingApprovalDefects = defects.filter(d => d.status === 'Pending Approval')
+    const scheduledDefects = approvedDefects.filter(d => d.status === 'Scheduled Block' || (d.work_required && d.work_required.startsWith('[Scheduled:')))
+    const pendingBlockDefects = approvedDefects.filter(d => d.status === 'Pending Block')
+
+    const totalApproved = approvedDefects.length
+    const overdueDefects = approvedDefects.filter(d => (d.overdueDays || d.overdue_days || 0) > 0 || d.severity === 'Critical' || d.status === 'Overdue').length
     const totalPlans = blockPlans.length
     const totalRequests = blockRequests.length
     const conflicts = blockPlans.filter(p => p.status === 'Conflict').length
     const resolvedConflicts = blockPlans.filter(p => p.aiOptimized || p.ai_optimized).length
     const healthyCorrCount = dataStore.corridors.length || 4
 
-    // Activity feed from recent defects and requests
+    // Activity feed from recent defects and plans
     const recentItems = [
-      ...defects.slice(0, 3).map(d => ({
+      ...defects.slice(0, 4).map(d => ({
         id: d.id,
-        type: 'defect_reported',
+        type: d.status === 'Pending Approval' ? 'defect_reported' : (d.status === 'Scheduled Block' ? 'defect_scheduled' : 'defect_approved'),
         dept: d.department || 'Engineering',
-        section: d.corridorName || d.corridor_name || d.section || 'Railway Corridor',
+        section: (d.corridor_name || d.corridorName || d.section || 'Railway Corridor').split('|').pop().trim(),
         time: formatRelativeTime(d.reportedAt || d.reported_at || d.created_at),
-        color: d.department?.includes('Signal') ? 'var(--dept-snt)' : d.department?.includes('Traction') ? 'var(--dept-trd)' : 'var(--dept-engg)'
+        color: d.status === 'Pending Approval' ? 'var(--accent)' : (d.department?.includes('Signal') ? 'var(--dept-snt)' : d.department?.includes('Traction') ? 'var(--dept-trd)' : 'var(--dept-engg)')
       })),
-      ...blockRequests.slice(0, 3).map(r => ({
-        id: r.id,
-        type: r.status === 'Approved' ? 'block_approved' : r.status === 'Conflict' ? 'conflict_detected' : 'block_requested',
-        dept: r.department || 'Engineering',
-        section: r.section || 'Railway Corridor',
-        time: formatRelativeTime(r.created_at),
-        color: r.status === 'Conflict' ? 'var(--dept-conflict)' : 'var(--dept-engg)'
+      ...blockPlans.slice(0, 2).map(p => ({
+        id: p.id,
+        type: 'block_scheduled',
+        dept: Array.isArray(p.departments) ? p.departments[0] : (p.department || 'Engineering'),
+        section: p.corridor || 'Railway Corridor',
+        time: formatRelativeTime(p.created_at),
+        color: p.status === 'Conflict' ? 'var(--dept-conflict)' : 'var(--dept-engg)'
       }))
     ].slice(0, 6)
 
-    // Gantt-like block schedule from block plans
+    // Gantt-like block schedule from block plans + scheduled defect curfews
     const todayBlocks = []
     const corridorGroups = {}
+
+    // 1. Add blocks from master blockPlans
     for (const plan of blockPlans) {
-      const corridorName = (plan.corridor || plan.corridor_id || '').split(' - ')[0].substring(0, 20) || 'Corridor'
+      const rawCorr = plan.corridor || plan.corridor_id || 'Corridor'
+      const corridorName = rawCorr.split(' - ')[0].replace(/ \(Sec \d+\)/, '').substring(0, 22) || 'Corridor'
       if (!corridorGroups[corridorName]) corridorGroups[corridorName] = []
 
       const startHour = parseTimeToHour(plan.startTime || plan.start_time)
-      const endHour = parseTimeToHour(plan.endTime || plan.end_time)
+      let endHour = parseTimeToHour(plan.endTime || plan.end_time)
+      if (endHour <= startHour) endHour = Math.min(24, startHour + 3)
+
       const depts = plan.departments || []
       const deptCode = depts.length > 1 ? 'multi'
         : depts[0]?.includes('Signal') ? 'snt'
@@ -263,29 +279,70 @@ router.get('/dashboard-summary', async (req, res) => {
 
       corridorGroups[corridorName].push({
         dept: deptCode,
-        start: startHour,
-        end: endHour,
-        label: (plan.title || plan.purpose || 'Block').substring(0, 20),
+        start: Math.max(0, Math.min(23.5, startHour)),
+        end: Math.max(startHour + 0.5, Math.min(24, endHour)),
+        label: (plan.title || plan.purpose || 'Block').substring(0, 22),
         conflict: plan.status === 'Conflict'
       })
+    }
+
+    // 2. Add scheduled defect curfews if not already represented
+    for (const defect of scheduledDefects) {
+      const rawWork = defect.work_required || defect.workRequired || ''
+      const rawCorr = defect.corridor_name || defect.corridorName || 'Delhi - Agra Semi High-Speed Corridor'
+      const corridorName = rawCorr.split('|').pop().trim().split('—')[0].trim().split(' - ')[0].substring(0, 22) || 'Delhi - Agra'
+
+      const alreadyIncluded = corridorGroups[corridorName]?.some(b => b.label.includes(defect.id))
+      if (!alreadyIncluded) {
+        if (!corridorGroups[corridorName]) corridorGroups[corridorName] = []
+
+        let startHour = 1.5
+        let endHour = 4.5
+        if (rawWork.includes('[Scheduled:')) {
+          const timeMatch = rawWork.match(/(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/)
+          if (timeMatch) {
+            startHour = parseTimeToHour(timeMatch[1])
+            endHour = parseTimeToHour(timeMatch[2])
+          }
+        }
+        if (endHour <= startHour) endHour = Math.min(24, startHour + 3)
+
+        const dept = defect.department || 'Engineering'
+        const deptCode = dept.includes('Signal') ? 'snt' : dept.includes('Traction') ? 'trd' : 'engg'
+
+        corridorGroups[corridorName].push({
+          dept: deptCode,
+          start: Math.max(0, Math.min(23.5, startHour)),
+          end: Math.max(startHour + 0.5, Math.min(24, endHour)),
+          label: `Curfew: ${defect.id}`,
+          conflict: false
+        })
+      }
     }
 
     for (const [corridor, blocks] of Object.entries(corridorGroups)) {
       todayBlocks.push({ corridor, blocks })
     }
 
-    // Department summary
+    // Department summary from approved defects and plans
     const deptCounts = { Engineering: { blocks: 0, overdue: 0 }, 'Signal & Telecom': { blocks: 0, overdue: 0 }, 'Traction Distribution': { blocks: 0, overdue: 0 } }
-    for (const d of defects) {
+    for (const d of approvedDefects) {
       const dept = d.department || 'Engineering'
       const key = dept.includes('Signal') ? 'Signal & Telecom' : dept.includes('Traction') ? 'Traction Distribution' : 'Engineering'
       deptCounts[key].blocks++
-      if ((d.overdueDays || d.overdue_days || 0) > 0) deptCounts[key].overdue++
+      if ((d.overdueDays || d.overdue_days || 0) > 0 || d.severity === 'Critical') deptCounts[key].overdue++
     }
     for (const r of blockRequests) {
       const dept = r.department || 'Engineering'
       const key = dept.includes('Signal') ? 'Signal & Telecom' : dept.includes('Traction') ? 'Traction Distribution' : 'Engineering'
       deptCounts[key].blocks++
+    }
+    for (const p of blockPlans) {
+      const depts = Array.isArray(p.departments) ? p.departments : [p.department || 'Engineering']
+      for (const dept of depts) {
+        const key = dept.includes('Signal') ? 'Signal & Telecom' : dept.includes('Traction') ? 'Traction Distribution' : 'Engineering'
+        deptCounts[key].blocks++
+      }
     }
 
     const deptSummary = [
@@ -294,20 +351,22 @@ router.get('/dashboard-summary', async (req, res) => {
       { name: 'Traction Distribution', code: 'TRD', blocks: deptCounts['Traction Distribution'].blocks, overdue: deptCounts['Traction Distribution'].overdue, color: 'var(--dept-trd)' }
     ]
 
+    const effectiveBlocksPlanned = totalPlans + (blockRequests.filter(r => r.status === 'Approved').length)
+
     res.json({
       kpis: [
         { label: 'Asset Availability', value: `${Math.round(((healthyCorrCount - conflicts) / healthyCorrCount) * 100)}%`, trend: `${resolvedConflicts} AI resolved`, trendUp: true },
-        { label: 'Blocks Planned', value: `${totalPlans + totalRequests}`, trend: `${totalRequests} requests`, trendUp: true },
-        { label: 'Overdue Tasks', value: `${overdueDefects}`, trend: `${totalDefects} total defects`, trendUp: overdueDefects === 0 },
-        { label: 'Conflicts Resolved', value: `${resolvedConflicts}`, trend: `${conflicts} pending`, trendUp: conflicts === 0 }
+        { label: 'Blocks Planned', value: `${effectiveBlocksPlanned}`, trend: pendingBlockDefects.length > 0 ? `${pendingBlockDefects.length} awaiting allocation` : `${effectiveBlocksPlanned} blocks active`, trendUp: true },
+        { label: 'Overdue Tasks', value: `${overdueDefects}`, trend: `${totalApproved} approved defects`, trendUp: overdueDefects === 0 },
+        { label: 'Conflicts Resolved', value: `${resolvedConflicts}`, trend: conflicts === 0 ? 'Zero conflicts' : `${conflicts} pending`, trendUp: conflicts === 0 }
       ],
       activityFeed: recentItems,
       todayBlocks,
       deptSummary,
       quickStats: {
         trainsTracked: dataStore.timetable?.length || 5,
-        maintenanceTasks: totalDefects + totalRequests,
-        corridorsUnderBlock: blockPlans.filter(p => p.status === 'Scheduled' || p.status === 'Conflict').length
+        maintenanceTasks: totalApproved + effectiveBlocksPlanned,
+        corridorsUnderBlock: blockPlans.filter(p => p.status === 'Scheduled' || p.status === 'Conflict').length + scheduledDefects.length
       },
       source: isSupabaseConfigured() ? 'Supabase Live DB' : 'RailLink DataStore'
     })

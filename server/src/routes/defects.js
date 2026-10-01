@@ -312,7 +312,12 @@ router.patch('/:id/approve', async (req, res) => {
 
     if (isSupabaseConfigured() && supabase) {
       try {
-        await supabase.from('defects').update({ status: targetStatus }).eq('id', id)
+        const { error } = await supabase.from('defects').update({ status: targetStatus }).eq('id', id)
+        if (error) {
+          console.warn('[Supabase Approve Error]:', error.message)
+        } else {
+          console.log(`[Supabase Approve Success]: Defect ${id} marked as ${targetStatus}`)
+        }
       } catch (sbErr) {
         console.warn('[Supabase Approve Warning]:', sbErr.message)
       }
@@ -397,16 +402,21 @@ router.patch('/:id/allocate', async (req, res) => {
           end_time: endTime || '04:30',
           duration: blockDuration,
           departments: [dept],
+          tasks: [id],
           efficiency_score: '98.5%',
           coordination_index: `Assigned: ${crewName} (${leadName})`,
           ai_optimized: true,
           status: 'Scheduled',
           trains_impacted: 0,
-          type: curfewType,
-          description: `Defect ${id} at ${defect.location || corridorName}. Crew: ${crewName}, In-charge: ${leadName}. ${notes || ''}`
+          type: curfewType
         }
 
-        await supabase.from('block_plans').insert([newBlockPlan])
+        const { error: planError } = await supabase.from('block_plans').insert([newBlockPlan])
+        if (planError) {
+          console.warn('[Supabase Block Plan Insert Error]:', planError.message)
+        } else {
+          console.log(`[Supabase Block Plan Created]: ${newBlockPlan.id} for defect ${id}`)
+        }
 
         // Add to in-memory blockPlans as well
         dataStore.blockPlans.unshift({
@@ -420,6 +430,7 @@ router.patch('/:id/allocate', async (req, res) => {
           endTime: newBlockPlan.end_time,
           duration: newBlockPlan.duration,
           departments: newBlockPlan.departments,
+          tasks: newBlockPlan.tasks,
           status: 'Scheduled',
           type: newBlockPlan.type,
           priority: 'High',
@@ -427,8 +438,7 @@ router.patch('/:id/allocate', async (req, res) => {
           coordinationIndex: newBlockPlan.coordination_index,
           trainsImpacted: 0,
           freightDiverted: 0,
-          aiOptimized: true,
-          description: newBlockPlan.description
+          aiOptimized: true
         })
       } catch (planErr) {
         console.warn('[Supabase Plan Auto-Creation Warning]:', planErr.message)
