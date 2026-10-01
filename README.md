@@ -39,7 +39,7 @@ Indian Railways manages maintenance on over **68,000 kilometers** of track daily
 | Feature | Description |
 |---------|-------------|
 | 🗺️ **Interactive Railway Map** | Live section status across India with clickable stations |
-| 📋 **AI Block Planning** | Auto-generate optimized maintenance block plans using Gemini AI |
+| 📋 **AI Block Planning** | Auto-generate optimized maintenance block plans using Google Gemma AI |
 | 📷 **AI Defect Reporting** | Upload a photo → AI auto-fills defect type, severity & recommendations |
 | 📊 **Analytics Dashboard** | Real-time defect trends, block completion rates, section health scores |
 | 🤖 **AI Studio** | Natural language queries for intelligent track insights |
@@ -73,12 +73,12 @@ Indian Railways manages maintenance on over **68,000 kilometers** of track daily
 [![Cloudinary](https://img.shields.io/badge/CLOUDINARY-Media%20%7C%20Storage%20%7C%20CDN-3448C5?style=for-the-badge&logo=cloudinary&logoColor=white)](https://cloudinary.com)
 
 > Every defect inspection photo is **uploaded, optimized, and globally delivered** through Cloudinary.
-> Cloudinary powers the mandatory photo evidence system in RailLink — enabling instant Gemini AI vision analysis on every defect submitted.
+> Cloudinary powers the mandatory photo evidence system in RailLink — enabling instant **Gemma 4 AI** multimodal analysis on every defect submitted.
 
 </div>
 
 ### AI
-![Google Gemini](https://img.shields.io/badge/Google%20Gemini%20AI-Vision%20%2B%20Text-4285F4?style=flat-square&logo=google)
+![Google Gemma](https://img.shields.io/badge/Google%20Gemma%204-Multimodal%20AI-4285F4?style=flat-square&logo=google)
 
 ### Deployment
 ![Render](https://img.shields.io/badge/Render-Deployed-46E3B7?style=flat-square&logo=render)
@@ -100,7 +100,7 @@ RailLink/
 ├── server/                  # Node.js + Express API Gateway
 │   ├── src/
 │   │   ├── routes/          # auth, defects, plans, sections, analytics, ai, upload
-│   │   ├── services/        # Supabase, Cloudinary, Gemini integrations
+│   │   ├── services/        # Supabase, Cloudinary, Gemma integrations
 │   │   └── app.js           # Express app + static file serving (SPA)
 │   └── package.json
 │
@@ -117,7 +117,7 @@ RailLink/
 - Node.js 18+
 - Supabase account → [supabase.com](https://supabase.com)
 - Cloudinary account → [cloudinary.com](https://cloudinary.com)
-- Google Gemini API key → [ai.google.dev](https://ai.google.dev)
+- Google Gemini API key (for Gemma models) → [ai.google.dev](https://ai.google.dev)
 
 ### 1. Clone the repo
 ```bash
