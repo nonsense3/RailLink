@@ -34,6 +34,11 @@ export const config = {
   },
   gemini: {
     apiKey: process.env.GEMINI_API_KEY || ''
+  },
+  ollama: {
+    apiKey: process.env.OLLAMA_API_KEY || '',
+    baseUrl: (process.env.OLLAMA_BASE_URL || 'http://localhost:11434').replace(/\/+$/, ''),
+    model: process.env.OLLAMA_MODEL || 'gemma4'
   }
 }
 

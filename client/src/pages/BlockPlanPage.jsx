@@ -2026,7 +2026,7 @@ export default function BlockPlanPage() {
                     {isAiVerifyingDefect ? (
                       <>
                         <Loader2 size={16} className="animate-spin" />
-                        <span>AI Verifying Photo (Gemini)...</span>
+                        <span>AI Verifying Photo (Gemma 4)...</span>
                       </>
                     ) : isSubmittingDefect ? (
                       <>

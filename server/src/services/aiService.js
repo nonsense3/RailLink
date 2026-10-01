@@ -95,7 +95,149 @@ async function callGemini(prompt, systemInstruction = '', imageUrl = null) {
 }
 
 /**
- * Analyze a defect photo using Gemini Vision.
+ * Call Ollama API with optional image (Gemma 4)
+ * Supports native Ollama /api/chat and OpenAI-compatible /v1/chat/completions
+ */
+async function callOllama(prompt, systemInstruction = '', imageUrl = null) {
+  const { apiKey, baseUrl, model } = config.ollama
+  const cleanBaseUrl = (baseUrl || 'http://localhost:11434').replace(/\/+$/, '')
+  const selectedModel = model || 'gemma4'
+
+  let rawBase64 = ''
+  let dataUri = ''
+
+  if (imageUrl) {
+    if (imageUrl.startsWith('data:')) {
+      const split = imageUrl.split(';base64,')
+      rawBase64 = split[1] || ''
+      dataUri = imageUrl
+    } else {
+      const imgRes = await axios.get(imageUrl, { responseType: 'arraybuffer', timeout: 15000 })
+      const mimeType = imgRes.headers['content-type']?.split(';')[0] || 'image/jpeg'
+      rawBase64 = Buffer.from(imgRes.data).toString('base64')
+      dataUri = `data:${mimeType};base64,${rawBase64}`
+    }
+  }
+
+  const headers = { 'Content-Type': 'application/json' }
+  if (apiKey) {
+    headers['Authorization'] = `Bearer ${apiKey}`
+  }
+
+  // Attempt 1: Native Ollama /api/chat
+  try {
+    const messages = []
+    if (systemInstruction) {
+      messages.push({ role: 'system', content: systemInstruction })
+    }
+    const userMsg = { role: 'user', content: prompt }
+    if (rawBase64) {
+      userMsg.images = [rawBase64]
+    }
+    messages.push(userMsg)
+
+    const payload = {
+      model: selectedModel,
+      messages,
+      stream: false,
+      format: 'json'
+    }
+
+    const res = await axios.post(`${cleanBaseUrl}/api/chat`, payload, { headers, timeout: 60000 })
+    const content = res.data?.message?.content
+    if (content) {
+      const cleaned = content.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim()
+      try {
+        return JSON.parse(cleaned)
+      } catch {
+        return { rawResponse: content }
+      }
+    }
+  } catch (nativeErr) {
+    console.warn(`[Ollama native /api/chat]: ${nativeErr.response?.status || nativeErr.message}, trying /v1/chat/completions...`)
+  }
+
+  // Attempt 2: Ollama / OpenAI-compatible /v1/chat/completions
+  try {
+    const messages = []
+    if (systemInstruction) {
+      messages.push({ role: 'system', content: systemInstruction })
+    }
+    const userContent = [{ type: 'text', text: prompt }]
+    if (dataUri) {
+      userContent.push({ type: 'image_url', image_url: { url: dataUri } })
+    }
+    messages.push({ role: 'user', content: rawBase64 ? userContent : prompt })
+
+    const payload = {
+      model: selectedModel,
+      messages,
+      response_format: { type: 'json_object' }
+    }
+
+    const res = await axios.post(`${cleanBaseUrl}/v1/chat/completions`, payload, { headers, timeout: 60000 })
+    const content = res.data?.choices?.[0]?.message?.content
+    if (content) {
+      const parsed = extractJson(content)
+      if (parsed) return parsed
+      return { rawResponse: content }
+    }
+  } catch (v1Err) {
+    throw new Error(`Ollama API error (${selectedModel}): ${v1Err.response?.data?.error?.message || v1Err.message}`)
+  }
+
+  throw new Error(`Empty response from Ollama (${selectedModel})`)
+}
+
+/**
+ * Robust JSON extractor for LLM outputs that may contain markdown or commentary
+ */
+function extractJson(text) {
+  if (!text || typeof text !== 'string') return null
+  const cleaned = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim()
+  try {
+    return JSON.parse(cleaned)
+  } catch {}
+
+  const jsonMatch = text.match(/\{[\s\S]*\}/)
+  if (jsonMatch) {
+    try {
+      return JSON.parse(jsonMatch[0])
+    } catch {}
+  }
+  return null
+}
+
+/**
+ * Universal AI Caller — Prefers Ollama (Gemma 4) if key/host is set, with Gemini fallback
+ */
+async function callAi(prompt, systemInstruction = '', imageUrl = null) {
+  const hasOllama = Boolean(config.ollama.apiKey || (config.ollama.baseUrl && config.ollama.baseUrl !== 'http://localhost:11434'))
+
+  if (hasOllama) {
+    try {
+      console.log(`[AI Engine]: Dispatching request to Ollama (${config.ollama.model || 'gemma4'}) at ${config.ollama.baseUrl}`)
+      return await callOllama(prompt, systemInstruction, imageUrl)
+    } catch (ollamaErr) {
+      console.warn(`[Ollama Error]: ${ollamaErr.message}. Falling back to Gemini...`)
+    }
+  }
+
+  // Fallback to Gemini if configured
+  if (config.gemini.apiKey) {
+    return await callGemini(prompt, systemInstruction, imageUrl)
+  }
+
+  // If local Ollama endpoint is configured, try it as final resort
+  if (config.ollama.baseUrl) {
+    return await callOllama(prompt, systemInstruction, imageUrl)
+  }
+
+  throw new Error('Neither Ollama nor Gemini is reachable or configured.')
+}
+
+/**
+ * Analyze a defect photo using Ollama Gemma 4 (or Gemini fallback).
  * Verifies the image is a real Indian Railways track/infrastructure defect.
  * Rejects random/unrelated photos before they enter the system.
  *
@@ -103,17 +245,18 @@ async function callGemini(prompt, systemInstruction = '', imageUrl = null) {
  * @returns {object} { isRailwayDefect, confidence, defectType, severity, description, rejectionReason }
  */
 export async function analyzeDefectPhoto(imageUrl) {
-  const apiKey = config.gemini.apiKey
+  const hasOllama = Boolean(config.ollama.apiKey || (config.ollama.baseUrl && config.ollama.baseUrl !== 'http://localhost:11434'))
+  const hasGemini = Boolean(config.gemini.apiKey)
 
-  // If Gemini not configured, pass through with a warning (don't block)
-  if (!apiKey) {
-    console.warn('[AI Analysis]: GEMINI_API_KEY not set — skipping image verification')
+  // If neither Ollama nor Gemini is configured, pass through with a warning
+  if (!hasOllama && !hasGemini) {
+    console.warn('[AI Analysis]: Neither OLLAMA_API_KEY nor GEMINI_API_KEY configured — skipping image verification')
     return {
       isRailwayDefect: true,
       confidence: 0,
       defectType: 'Unknown',
       severity: 'Medium',
-      description: 'AI verification skipped (API key not configured)',
+      description: 'AI verification skipped (AI key not configured)',
       rejectionReason: null,
       aiVerified: false
     }
@@ -152,7 +295,7 @@ Respond ONLY with this exact JSON (no extra text):
 }`
 
   try {
-    const result = await callGemini(
+    const result = await callAi(
       prompt,
       'You are a strict Indian Railways infrastructure defect verification AI. Never approve random or unrelated images.',
       imageUrl
@@ -170,7 +313,8 @@ Respond ONLY with this exact JSON (no extra text):
       severity: result.severity || 'Medium',
       description: result.description || '',
       rejectionReason: result.rejectionReason || null,
-      aiVerified: true
+      aiVerified: true,
+      engine: hasOllama ? `Ollama (${config.ollama.model || 'gemma4'})` : 'Google Gemini'
     }
   } catch (err) {
     console.error('[AI Defect Analysis Error]:', err.message)
@@ -192,16 +336,17 @@ Respond ONLY with this exact JSON (no extra text):
  * Generate AI-Optimized Block Schedule
  */
 export async function generateOptimizedSchedule(requests = [], corridors = []) {
-  const apiKey = config.gemini.apiKey
+  const hasOllama = Boolean(config.ollama.apiKey || (config.ollama.baseUrl && config.ollama.baseUrl !== 'http://localhost:11434'))
+  const hasGemini = Boolean(config.gemini.apiKey)
 
-  if (!apiKey) {
+  if (!hasOllama && !hasGemini) {
     // Intelligent local fallback
     return {
       confidence: 93.4,
       totalBlocks: 24,
       conflictsResolved: 6,
       uptimeImprovement: '+4.1%',
-      source: 'RailLink AI Engine (Fallback - Configure GEMINI_API_KEY for live Google Gemini AI)',
+      source: 'RailLink AI Engine (Local Planner - Configure OLLAMA_API_KEY for live Gemma 4 AI)',
       schedule: [
         { id: 1, corridor: 'Delhi-Agra Sec 1', dept: 'Engineering', task: 'Rail Renewal', start: '02:00', end: '05:30', priority: 5, reason: 'Rail fracture detected — safety critical' },
         { id: 2, corridor: 'Delhi-Agra Sec 1', dept: 'Signal & Telecom', task: 'Signal Testing', start: '06:00', end: '08:00', priority: 3, reason: 'Post-renewal signal verification required' },
@@ -241,17 +386,17 @@ Return a strict JSON object with this exact schema:
 }`
 
   try {
-    const result = await callGemini(prompt, 'You are an advanced railway scheduling and optimization AI. Always respond with valid JSON only, no extra commentary.')
-    result.source = 'Google Gemini 2.0 Flash (Live AI)'
+    const result = await callAi(prompt, 'You are an advanced railway scheduling and optimization AI. Always respond with valid JSON only, no extra commentary.')
+    result.source = hasOllama ? `Ollama (${config.ollama.model || 'gemma4'} - Live AI)` : 'Google Gemini 2.0 Flash (Live AI)'
     return result
   } catch (err) {
-    console.warn('[Gemini AI Error]:', err.message, 'Falling back to local planner.')
+    console.warn('[AI Schedule Error]:', err.message, 'Falling back to local planner.')
     return {
       confidence: 91.0,
       totalBlocks: 20,
       conflictsResolved: 4,
       uptimeImprovement: '+3.5%',
-      source: `RailLink Engine (Gemini fallback: ${err.message})`,
+      source: `RailLink Engine (AI fallback: ${err.message})`,
       schedule: [
         { id: 1, corridor: 'Delhi-Agra Sec 1', dept: 'Engineering', task: 'Rail Renewal', start: '02:00', end: '05:30', priority: 5, reason: 'Emergency rail renewal window' },
         { id: 2, corridor: 'Mumbai-Pune Main', dept: 'Multi-Department', task: 'Joint OHE + Track Block', start: '01:30', end: '05:00', priority: 5, reason: 'Merged Engineering and Traction block to save 2h track possession' }
@@ -261,14 +406,26 @@ Return a strict JSON object with this exact schema:
 }
 
 /**
- * Check Gemini API status
+ * Check AI API status (Ollama Gemma 4 or Gemini)
  */
 export function getAiStatus() {
-  const hasKey = Boolean(config.gemini.apiKey && config.gemini.apiKey.trim().length > 0)
+  const hasOllama = Boolean(config.ollama.apiKey || (config.ollama.baseUrl && config.ollama.baseUrl !== 'http://localhost:11434'))
+  const hasGemini = Boolean(config.gemini.apiKey && config.gemini.apiKey.trim().length > 0)
+
+  if (hasOllama) {
+    return {
+      configured: true,
+      provider: 'Ollama',
+      model: config.ollama.model || 'gemma4',
+      status: 'Ready',
+      baseUrl: config.ollama.baseUrl || 'http://localhost:11434'
+    }
+  }
+
   return {
-    configured: hasKey,
-    model: 'gemini-3.8-flash',
-    provider: 'Google AI Studio',
-    status: hasKey ? 'Ready' : 'API Key required'
+    configured: hasGemini,
+    provider: hasGemini ? 'Google AI Studio' : 'None',
+    model: hasGemini ? 'gemini-2.0-flash' : (config.ollama.model || 'gemma4'),
+    status: hasGemini ? 'Ready' : 'Ollama or Gemini API Key required'
   }
 }

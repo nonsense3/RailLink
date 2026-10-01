@@ -33,5 +33,11 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
+      - key: OLLAMA_API_KEY
+        sync: false
+      - key: OLLAMA_BASE_URL
+        sync: false
+      - key: OLLAMA_MODEL
+        value: gemma4
       - key: ML_SERVICE_URL
         value: http://localhost:8000

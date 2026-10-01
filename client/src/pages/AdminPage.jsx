@@ -22,12 +22,19 @@ import {
   Edit3,
   Trash2,
   TrendingUp,
-  Database
+  Database,
+  Brain,
+  Key,
+  Globe,
+  Copy,
+  ExternalLink,
+  Server,
+  Check
 } from 'lucide-react'
 
 export default function AdminPage() {
   const { user } = useAuthStore()
-  const [activeTab, setActiveTab] = useState('overview') // 'overview' | 'users'
+  const [activeTab, setActiveTab] = useState('overview') // 'overview' | 'users' | 'permissions' | 'settings'
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [usersList, setUsersList] = useState([])
@@ -37,6 +44,61 @@ export default function AdminPage() {
     totalDefects: 0,
     totalPlans: 0
   })
+
+  // Settings & AI State
+  const [aiStatus, setAiStatus] = useState(null)
+  const [ollamaKey, setOllamaKey] = useState('')
+  const [ollamaBaseUrl, setOllamaBaseUrl] = useState('')
+  const [ollamaModel, setOllamaModel] = useState('gemma4')
+  const [geminiKey, setGeminiKey] = useState('')
+  const [savingAi, setSavingAi] = useState(false)
+  const [aiSaveMsg, setAiSaveMsg] = useState(null)
+  const [copiedUrl, setCopiedUrl] = useState(null)
+
+  const loadAiStatus = async () => {
+    try {
+      const res = await api.get('/ai/status')
+      if (res) {
+        setAiStatus(res)
+        if (res.baseUrl) setOllamaBaseUrl(res.baseUrl)
+        if (res.model) setOllamaModel(res.model)
+      }
+    } catch (err) {
+      console.error('Failed to load AI status:', err)
+    }
+  }
+
+  const handleSaveAiConfig = async (e) => {
+    e.preventDefault()
+    setSavingAi(true)
+    setAiSaveMsg(null)
+    try {
+      const res = await api.post('/ai/config-keys', {
+        ollamaKey: ollamaKey.trim() || undefined,
+        ollamaBaseUrl: ollamaBaseUrl.trim() || undefined,
+        ollamaModel: ollamaModel.trim() || 'gemma4',
+        geminiKey: geminiKey.trim() || undefined
+      })
+      await loadAiStatus()
+      setAiSaveMsg({
+        type: 'success',
+        text: `✓ AI Settings updated! Active Engine: ${res.ollamaConfigured ? 'Ollama (' + (res.ollamaModel || 'gemma4') + ')' : res.geminiConfigured ? 'Google Gemini' : 'Local Engine'}`
+      })
+    } catch (err) {
+      setAiSaveMsg({ type: 'error', text: `Failed to update: ${err.message}` })
+    } finally {
+      setSavingAi(false)
+      setTimeout(() => setAiSaveMsg(null), 5000)
+    }
+  }
+
+  const copyToClipboard = (text, label) => {
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(text)
+    }
+    setCopiedUrl(label)
+    setTimeout(() => setCopiedUrl(null), 2500)
+  }
 
   const loadData = async () => {
     try {
@@ -129,7 +191,10 @@ export default function AdminPage() {
     }
   }
 
-  useEffect(() => { loadData() }, [])
+  useEffect(() => {
+    loadData()
+    loadAiStatus()
+  }, [])
 
   const getRoleColor = (role) => {
     switch (role) {
@@ -180,13 +245,13 @@ export default function AdminPage() {
               Admin <span style={{ color: 'var(--accent)' }}>Panel</span>
             </h1>
             <p style={{ color: 'var(--text-muted)', maxWidth: '600px', marginTop: 'var(--space-xs)', fontSize: '1rem' }}>
-              Manage system users, configure role-based access control, and monitor platform activity across all departments.
+              Manage system users, configure role-based access control, configure AI engines & redirection settings.
             </p>
           </div>
 
           <div style={{ display: 'flex', gap: 'var(--space-md)', alignItems: 'center', flexWrap: 'wrap' }}>
             <button
-              onClick={loadData}
+              onClick={() => { loadData(); loadAiStatus() }}
               disabled={refreshing}
               className="btn btn-secondary"
               style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
@@ -209,11 +274,13 @@ export default function AdminPage() {
           gap: '8px',
           marginBottom: 'var(--space-xl)',
           border: '1px solid var(--border)',
+          overflowX: 'auto'
         }}>
           {[
             { key: 'overview', label: 'System Overview', icon: BarChart3 },
             { key: 'users', label: `User Roles & RBAC (${usersList.length})`, icon: Users },
             { key: 'permissions', label: 'Access Matrix', icon: Lock },
+            { key: 'settings', label: 'Settings & Redirection', icon: Settings },
           ].map(tab => (
             <button
               key={tab.key}
@@ -231,6 +298,7 @@ export default function AdminPage() {
                 alignItems: 'center',
                 gap: '8px',
                 transition: 'all 0.2s ease',
+                whiteSpace: 'nowrap'
               }}
             >
               <tab.icon size={15} />
@@ -514,6 +582,257 @@ export default function AdminPage() {
                 Role assignments are enforced on both the client and server layers. All data mutations (block plan approvals, defect status changes) require appropriate role clearance and are fully audit-logged.
               </p>
             </div>
+          </div>
+        </RevealWrapper>
+      )}
+
+      {/* Tab: System & AI Settings */}
+      {activeTab === 'settings' && (
+        <RevealWrapper delay={0.2}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2xl)' }}>
+
+            {/* AI Engine Configuration (Ollama Gemma 4 + Gemini) */}
+            <div className="card" style={{ padding: 'var(--space-xl)', border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 'var(--space-md)', marginBottom: 'var(--space-lg)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ width: '42px', height: '42px', borderRadius: 'var(--radius-card)', background: 'rgba(228, 164, 189, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Brain size={22} color="var(--accent)" />
+                  </div>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>AI Intelligence Engine</h3>
+                      <span className="badge" style={{
+                        background: aiStatus?.provider === 'Ollama' ? 'rgba(109, 184, 123, 0.15)' : 'rgba(228, 164, 189, 0.15)',
+                        color: aiStatus?.provider === 'Ollama' ? 'var(--status-healthy)' : 'var(--accent)',
+                        fontWeight: 800,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}>
+                        <CheckCircle2 size={11} /> {aiStatus?.provider === 'Ollama' ? `Active: Ollama (${aiStatus?.model || 'gemma4'})` : aiStatus?.configured ? 'Active: Google Gemini' : 'Local Fallback'}
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
+                      Powers defect photo authenticity verification and AI schedule optimization. Prioritizes Ollama (Gemma 4).
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Status:</span>
+                  <strong style={{ fontSize: '0.85rem', color: aiStatus?.status === 'Ready' ? 'var(--status-healthy)' : 'var(--dept-trd)' }}>
+                    {aiStatus?.status || 'Ready'}
+                  </strong>
+                </div>
+              </div>
+
+              <form onSubmit={handleSaveAiConfig} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 'var(--space-md)' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px', color: 'var(--text-secondary)' }}>
+                      Ollama API Key (Remote / Cloud)
+                    </label>
+                    <input
+                      type="password"
+                      className="input"
+                      value={ollamaKey}
+                      onChange={(e) => setOllamaKey(e.target.value)}
+                      placeholder="Optional — enter your remote Ollama bearer key"
+                      style={{ width: '100%', fontSize: '0.85rem' }}
+                    />
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                      Passed as Authorization: Bearer header to your Ollama cloud or proxy endpoint.
+                    </span>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px', color: 'var(--text-secondary)' }}>
+                      Ollama Endpoint / Base URL
+                    </label>
+                    <input
+                      type="text"
+                      className="input"
+                      value={ollamaBaseUrl}
+                      onChange={(e) => setOllamaBaseUrl(e.target.value)}
+                      placeholder="http://localhost:11434 or remote URL"
+                      style={{ width: '100%', fontSize: '0.85rem' }}
+                    />
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                      Default: http://localhost:11434 (or remote hosted Ollama instance)
+                    </span>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px', color: 'var(--text-secondary)' }}>
+                      Ollama Model
+                    </label>
+                    <input
+                      type="text"
+                      className="input"
+                      value={ollamaModel}
+                      onChange={(e) => setOllamaModel(e.target.value)}
+                      placeholder="gemma4"
+                      style={{ width: '100%', fontSize: '0.85rem' }}
+                    />
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                      Target model tag (e.g. gemma4, gemma:7b, gemma2, etc.)
+                    </span>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px', color: 'var(--text-secondary)' }}>
+                      Google Gemini API Key (Fallback)
+                    </label>
+                    <input
+                      type="password"
+                      className="input"
+                      value={geminiKey}
+                      onChange={(e) => setGeminiKey(e.target.value)}
+                      placeholder="Optional fallback Gemini key"
+                      style={{ width: '100%', fontSize: '0.85rem' }}
+                    />
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                      Used automatically if Ollama is unreachable.
+                    </span>
+                  </div>
+                </div>
+
+                {aiSaveMsg && (
+                  <div style={{
+                    padding: '10px 14px',
+                    borderRadius: '8px',
+                    background: aiSaveMsg.type === 'success' ? 'rgba(109, 184, 123, 0.12)' : 'rgba(201, 79, 79, 0.12)',
+                    border: `1px solid ${aiSaveMsg.type === 'success' ? 'rgba(109, 184, 123, 0.3)' : 'rgba(201, 79, 79, 0.3)'}`,
+                    color: aiSaveMsg.type === 'success' ? 'var(--status-healthy)' : 'var(--dept-conflict)',
+                    fontWeight: 700,
+                    fontSize: '0.82rem'
+                  }}>
+                    {aiSaveMsg.text}
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'var(--space-xs)' }}>
+                  <button
+                    type="submit"
+                    disabled={savingAi}
+                    className="btn btn-primary"
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 22px' }}
+                  >
+                    {savingAi ? <RefreshCw size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                    <span>{savingAi ? 'Saving & Testing...' : 'Save AI Configuration'}</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* Supabase URL Configuration & Redirection Guide */}
+            <div className="card" style={{ padding: 'var(--space-xl)', border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: 'var(--space-md)' }}>
+                <div style={{ width: '42px', height: '42px', borderRadius: 'var(--radius-card)', background: 'rgba(126, 196, 207, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Globe size={22} color="var(--dept-snt)" />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>
+                    Supabase Authentication & Redirect URL Guide
+                  </h3>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
+                    Follow these steps to configure production redirection in the Supabase Dashboard so users redirect properly after sign-in.
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+                {/* Step 1 */}
+                <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start', padding: '14px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-card)', border: '1px solid var(--border)' }}>
+                  <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'var(--accent)', color: 'var(--bg-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '0.85rem', flexShrink: 0 }}>
+                    1
+                  </div>
+                  <div>
+                    <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 4px 0' }}>Open Supabase URL Configuration</h4>
+                    <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
+                      Go to your <a href="https://supabase.com/dashboard" target="_blank" rel="noreferrer" style={{ color: 'var(--accent)', fontWeight: 700, textDecoration: 'underline' }}>Supabase Dashboard</a> &rarr; Select your Project &rarr; Click <strong>Authentication</strong> in the left sidebar &rarr; Select <strong>URL Configuration</strong>.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Step 2 */}
+                <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start', padding: '14px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-card)', border: '1px solid var(--border)' }}>
+                  <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'var(--accent)', color: 'var(--bg-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '0.85rem', flexShrink: 0 }}>
+                    2
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 4px 0' }}>Set Site URL</h4>
+                    <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)', margin: '0 0 8px 0', lineHeight: 1.5 }}>
+                      Under <strong>Site URL</strong>, set your primary Render production domain:
+                    </p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', maxWidth: '520px' }}>
+                      <code style={{ flex: 1, padding: '8px 12px', background: 'var(--bg-primary)', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '0.82rem', color: 'var(--accent)', fontWeight: 700 }}>
+                        https://raillink.onrender.com
+                      </code>
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard('https://raillink.onrender.com', 'site-url')}
+                        className="btn btn-secondary"
+                        style={{ padding: '7px 12px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                      >
+                        {copiedUrl === 'site-url' ? <Check size={13} color="var(--status-healthy)" /> : <Copy size={13} />}
+                        <span>{copiedUrl === 'site-url' ? 'Copied!' : 'Copy'}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Step 3 */}
+                <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start', padding: '14px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-card)', border: '1px solid var(--border)' }}>
+                  <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'var(--accent)', color: 'var(--bg-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '0.85rem', flexShrink: 0 }}>
+                    3
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 4px 0' }}>Add Redirect URLs (Wildcards)</h4>
+                    <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)', margin: '0 0 10px 0', lineHeight: 1.5 }}>
+                      Under <strong>Redirect URLs</strong>, click <em>Add URL</em> and add each of the following patterns so that both Render and local development authentication callbacks are whitelisted:
+                    </p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxWidth: '560px' }}>
+                      {[
+                        { url: 'https://raillink.onrender.com/**', id: 'redir-render-wildcard', desc: 'Render Production Wildcard' },
+                        { url: 'https://raillink.onrender.com/login', id: 'redir-render-login', desc: 'Render Direct Login' },
+                        { url: 'http://localhost:5173/**', id: 'redir-local-vite', desc: 'Vite Local Development' },
+                        { url: 'http://localhost:3001/**', id: 'redir-local-server', desc: 'Node Express Server' },
+                      ].map((item) => (
+                        <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <code style={{ flex: 1, padding: '7px 12px', background: 'var(--bg-primary)', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 600 }}>
+                            {item.url}
+                          </code>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(item.url, item.id)}
+                            className="btn btn-secondary"
+                            style={{ padding: '6px 12px', fontSize: '0.76rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                          >
+                            {copiedUrl === item.id ? <Check size={12} color="var(--status-healthy)" /> : <Copy size={12} />}
+                            <span>{copiedUrl === item.id ? 'Copied!' : 'Copy'}</span>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Step 4 */}
+                <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start', padding: '14px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-card)', border: '1px solid var(--border)' }}>
+                  <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'var(--status-healthy)', color: 'var(--bg-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '0.85rem', flexShrink: 0 }}>
+                    ✓
+                  </div>
+                  <div>
+                    <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 4px 0' }}>Save Changes</h4>
+                    <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
+                      Click <strong>Save</strong> at the bottom of the Supabase URL Configuration page. Your users will now seamlessly authenticate on Render without any redirection mismatch errors!
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
           </div>
         </RevealWrapper>
       )}
