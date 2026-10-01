@@ -50,18 +50,28 @@ export const useAuthStore = create((set, get) => ({
   register: async (email, password, metadata = {}) => {
     set({ loading: true, error: null })
     try {
-      const { data, error } = await supabase.auth.signUp({
+      // Step 1: Create user via backend to bypass rate limits
+      const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, metadata })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to register');
+
+      // Step 2: Now that user exists and is confirmed, sign them in directly
+      const { data: signInData, error } = await supabase.auth.signInWithPassword({
         email,
         password,
-        options: { data: metadata },
       })
       if (error) throw error
-      let user = data.user
+
+      let user = signInData.user
       if (user) {
         user = { ...user, role: ADMIN_EMAILS.includes(user.email?.toLowerCase()) ? 'admin' : (user.user_metadata?.role || 'employee') }
       }
-      set({ user, session: data.session, loading: false })
-      return data
+      set({ user, session: signInData.session, loading: false })
+      return signInData
     } catch (error) {
       set({ error: error.message, loading: false })
       throw error
