@@ -41,8 +41,32 @@ router.get('/me', (req, res) => {
   res.json({ user: null })
 })
 
-router.get('/users', (req, res) => {
-  res.json({ users: [] })
+router.get('/users', async (req, res) => {
+  try {
+    if (supabase && supabase.auth?.admin) {
+      const { data, error } = await supabase.auth.admin.listUsers()
+      if (!error && Array.isArray(data?.users)) {
+        const users = data.users.map(u => {
+          const email = u.email || ''
+          const name = u.user_metadata?.full_name || u.user_metadata?.name || email.split('@')[0]
+          const isAdmin = ADMIN_EMAILS.includes(email.toLowerCase()) || u.user_metadata?.role === 'admin'
+          return {
+            id: u.id,
+            name: name.charAt(0).toUpperCase() + name.slice(1),
+            email: email,
+            role: isAdmin ? 'admin' : (u.user_metadata?.role || 'employee'),
+            department: u.user_metadata?.department || (isAdmin ? 'Operations' : 'Engineering'),
+            status: u.banned_until ? 'Suspended' : 'Active',
+            lastLogin: u.last_sign_in_at ? u.last_sign_in_at.split('T')[0] : (u.created_at ? u.created_at.split('T')[0] : '2026-10-01')
+          }
+        })
+        return res.json({ users, count: users.length, source: 'Supabase Auth' })
+      }
+    }
+  } catch (err) {
+    console.warn('[Auth Users Error]:', err.message)
+  }
+  res.json({ users: [], count: 0, source: 'RailLink Gateway' })
 })
 
 export default router

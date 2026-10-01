@@ -83,10 +83,10 @@ export default function AdminPage() {
   const [allocEndTime, setAllocEndTime] = useState('04:30')
   const [allocDuration, setAllocDuration] = useState('3h 00m')
   const [allocBlockType, setAllocBlockType] = useState('Night Shadow Curfew (01:30 - 04:30)')
-  const [allocCrew, setAllocCrew] = useState('Track Gang #04 (PW Heavy Section)')
-  const [allocSupervisor, setAllocSupervisor] = useState('R.K. Sharma (SSE/PW)')
+  const [allocCrew, setAllocCrew] = useState('')
+  const [allocSupervisor, setAllocSupervisor] = useState('')
   const [allocWorkersCount, setAllocWorkersCount] = useState(8)
-  const [allocMachinery, setAllocMachinery] = useState('Plasser Tamper DUOMATIC & Rail Drill')
+  const [allocMachinery, setAllocMachinery] = useState('')
 
   // Settings & AI State
   const [aiStatus, setAiStatus] = useState(null)
@@ -148,19 +148,17 @@ export default function AdminPage() {
       // Load users
       try {
         const uRes = await api.get('/auth/users')
-        if (uRes?.users) {
+        if (uRes?.users && Array.isArray(uRes.users)) {
           setUsersList(uRes.users)
           setStats(prev => ({ ...prev, totalUsers: uRes.users.length, activeUsers: uRes.users.filter(u => u.status === 'Active').length }))
+        } else {
+          setUsersList([])
+          setStats(prev => ({ ...prev, totalUsers: 0, activeUsers: 0 }))
         }
-      } catch {
-        const fallback = [
-          { id: 1, name: 'Ankit Dey', email: 'ankitdey061@gmail.com', role: 'admin', department: 'Operations', status: 'Active', lastLogin: '2026-10-01' },
-          { id: 2, name: 'Souvik Das', email: 'dasouvik122005@gmail.com', role: 'admin', department: 'Operations', status: 'Active', lastLogin: '2026-10-01' },
-          { id: 3, name: 'Employee User 1', email: 'employee1@raillink.in', role: 'employee', department: 'Planning', status: 'Active', lastLogin: '2026-10-01' },
-          { id: 4, name: 'Employee User 2', email: 'employee2@raillink.in', role: 'employee', department: 'Engineering', status: 'Active', lastLogin: '2026-10-01' },
-        ]
-        setUsersList(fallback)
-        setStats(prev => ({ ...prev, totalUsers: fallback.length, activeUsers: fallback.length }))
+      } catch (uErr) {
+        console.warn('Failed to load users:', uErr)
+        setUsersList([])
+        setStats(prev => ({ ...prev, totalUsers: 0, activeUsers: 0 }))
       }
 
       // Load approved / published defects for Block & Crew Allocation
@@ -409,8 +407,9 @@ export default function AdminPage() {
       setAllocStartTime('01:30')
       setAllocEndTime('04:30')
     }
-    if (defect.allocatedCrew) setAllocCrew(defect.allocatedCrew)
-    if (defect.supervisor) setAllocSupervisor(defect.supervisor)
+    setAllocCrew(defect.allocatedCrew || '')
+    setAllocSupervisor(defect.supervisor || '')
+    setAllocMachinery(defect.machinery || '')
   }
 
   const handleSaveAllocation = async (e) => {
@@ -906,41 +905,64 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {[
-                { event: 'Block plan approved', user: 'Priya Sharma', time: '5 min ago', type: 'success' },
-                { event: 'New defect submitted via TMS', user: 'Vikram Singh', time: '18 min ago', type: 'info' },
-                { event: 'AI Studio plan generated', user: 'Priya Sharma', time: '42 min ago', type: 'ai' },
-                { event: 'Corridor Map sync completed', user: 'System', time: '1 hr ago', type: 'success' },
-                { event: 'User login — SMMS S&T role', user: 'Anita Patel', time: '2 hrs ago', type: 'info' },
-              ].map((item, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.06 }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '14px',
-                    padding: '12px 16px',
-                    background: 'var(--bg-secondary)',
-                    borderRadius: 'var(--radius-card)',
-                    border: '1px solid var(--border)',
-                  }}
-                >
-                  <div style={{
-                    width: '8px', height: '8px', borderRadius: '50%', flexShrink: 0,
-                    background: item.type === 'success' ? 'var(--status-healthy)' : item.type === 'ai' ? 'var(--accent)' : 'var(--dept-snt)'
-                  }} />
-                  <div style={{ flex: 1 }}>
-                    <span style={{ fontSize: '0.875rem', fontWeight: 600 }}>{item.event}</span>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginLeft: '8px' }}>by {item.user}</span>
+            {(() => {
+              const liveActivities = [
+                ...pendingDefects.map(d => ({
+                  event: `New defect report submitted: ${d.assetType || d.defectCategory || 'Track Issue'} (${d.id})`,
+                  user: d.sourceSystem || 'Field Worker',
+                  time: d.reportedDate || 'Pending Review',
+                  type: 'info'
+                })),
+                ...approvedDefects.map(d => ({
+                  event: d.status === 'Scheduled Block'
+                    ? `Block curfew & crew allocated: ${d.id}`
+                    : `Defect approved & published: ${d.id}`,
+                  user: d.supervisor || d.allocatedCrew || 'Admin Operations',
+                  time: d.scheduledDate || d.reportedDate || 'Active',
+                  type: 'success'
+                }))
+              ].slice(0, 6)
+
+              if (liveActivities.length === 0) {
+                return (
+                  <div style={{ padding: 'var(--space-lg)', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                    No recent platform activity. New worker submissions and curfew allocations will appear here live.
                   </div>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', flexShrink: 0 }}>{item.time}</span>
-                </motion.div>
-              ))}
-            </div>
+                )
+              }
+
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {liveActivities.map((item, i) => (
+                    <motion.div
+                      key={i}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.06 }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '14px',
+                        padding: '12px 16px',
+                        background: 'var(--bg-secondary)',
+                        borderRadius: 'var(--radius-card)',
+                        border: '1px solid var(--border)',
+                      }}
+                    >
+                      <div style={{
+                        width: '8px', height: '8px', borderRadius: '50%', flexShrink: 0,
+                        background: item.type === 'success' ? 'var(--status-healthy)' : 'var(--dept-snt)'
+                      }} />
+                      <div style={{ flex: 1 }}>
+                        <span style={{ fontSize: '0.875rem', fontWeight: 600 }}>{item.event}</span>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginLeft: '8px' }}>by {item.user}</span>
+                      </div>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', flexShrink: 0 }}>{item.time}</span>
+                    </motion.div>
+                  ))}
+                </div>
+              )
+            })()}
           </div>
         </RevealWrapper>
       )}
