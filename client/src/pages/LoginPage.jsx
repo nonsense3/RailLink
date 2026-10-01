@@ -9,8 +9,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
-  const [hoveredRole, setHoveredRole] = useState(null)
-  const { login, register, demoLogin, loading } = useAuthStore()
+  const { login, register, loading } = useAuthStore()
   const navigate = useNavigate()
 
   const handleSubmit = async (e) => {
@@ -28,14 +27,6 @@ export default function LoginPage() {
     }
   }
 
-  const handleDemoLogin = async (role) => {
-    try {
-      await demoLogin(role)
-      navigate('/dashboard')
-    } catch (err) {
-      navigate('/dashboard')
-    }
-  }
 
   return (
     <div style={{
@@ -220,54 +211,7 @@ export default function LoginPage() {
             </span>
           </div>
 
-          {/* Demo Login Section */}
-          <div style={{
-            borderTop: '1px solid var(--border)',
-            paddingTop: 'var(--space-xl)',
-            marginTop: 'var(--space-lg)',
-          }}>
-            <p className="text-label" style={{ marginBottom: 'var(--space-md)', textAlign: 'center' }}>
-              QUICK DEMO ACCESS
-            </p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(85px, 1fr))', gap: 'var(--space-sm)' }}>
-              {[
-                { role: 'planner', label: 'Planner', color: 'var(--accent)', hoverBg: 'var(--accent)', hoverText: '#ffffff', shadow: 'rgba(228, 164, 189, 0.4)' },
-                { role: 'engg', label: 'Engineering', color: 'var(--dept-engg)', hoverBg: 'var(--dept-engg)', hoverText: '#ffffff', shadow: 'rgba(74, 124, 89, 0.35)' },
-                { role: 'snt', label: 'Signal & Telecom', color: 'var(--dept-snt)', hoverBg: 'var(--dept-snt)', hoverText: '#ffffff', shadow: 'rgba(69, 123, 157, 0.35)' },
-                { role: 'trd', label: 'Traction', color: 'var(--dept-trd)', hoverBg: 'var(--dept-trd)', hoverText: '#ffffff', shadow: 'rgba(212, 160, 87, 0.35)' },
-              ].map((demo) => {
-                const isHovered = hoveredRole === demo.role
-                return (
-                  <button
-                    key={demo.role}
-                    type="button"
-                    onClick={() => handleDemoLogin(demo.role)}
-                    onMouseEnter={() => setHoveredRole(demo.role)}
-                    onMouseLeave={() => setHoveredRole(null)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '10px',
-                      fontWeight: 800,
-                      letterSpacing: '0.02em',
-                      padding: '8px 6px',
-                      borderRadius: 'var(--radius-sm)',
-                      border: `1.5px solid ${demo.color}`,
-                      background: isHovered ? demo.hoverBg : 'var(--bg-card)',
-                      color: isHovered ? demo.hoverText : demo.color,
-                      cursor: 'pointer',
-                      transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                      transform: isHovered ? 'translateY(-2px)' : 'translateY(0)',
-                      boxShadow: isHovered ? `0 6px 16px ${demo.shadow}` : 'none',
-                    }}
-                  >
-                    {demo.label}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
+
         </motion.div>
       </div>
     </div>

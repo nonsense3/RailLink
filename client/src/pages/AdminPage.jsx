@@ -26,7 +26,7 @@ import {
 } from 'lucide-react'
 
 export default function AdminPage() {
-  const { user, demoLogin } = useAuthStore()
+  const { user } = useAuthStore()
   const [activeTab, setActiveTab] = useState('overview') // 'overview' | 'users'
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -51,10 +51,10 @@ export default function AdminPage() {
         }
       } catch {
         const fallback = [
-          { id: 1, name: 'Rajesh Kumar', email: 'admin@RailLink.in', role: 'admin', department: 'Operations', status: 'Active', lastLogin: '2026-09-09' },
-          { id: 2, name: 'Priya Sharma', email: 'planner@RailLink.in', role: 'planner', department: 'Planning', status: 'Active', lastLogin: '2026-09-08' },
-          { id: 3, name: 'Vikram Singh', email: 'engg@RailLink.in', role: 'dept_head', department: 'Engineering', status: 'Active', lastLogin: '2026-09-09' },
-          { id: 4, name: 'Anita Patel', email: 'snt@RailLink.in', role: 'dept_head', department: 'Signal & Telecom', status: 'Active', lastLogin: '2026-09-07' },
+          { id: 1, name: 'Ankit Dey', email: 'ankitdey061@gmail.com', role: 'admin', department: 'Operations', status: 'Active', lastLogin: '2026-10-01' },
+          { id: 2, name: 'Souvik Das', email: 'dasouvik122005@gmail.com', role: 'admin', department: 'Operations', status: 'Active', lastLogin: '2026-10-01' },
+          { id: 3, name: 'Employee User 1', email: 'employee1@raillink.in', role: 'employee', department: 'Planning', status: 'Active', lastLogin: '2026-10-01' },
+          { id: 4, name: 'Employee User 2', email: 'employee2@raillink.in', role: 'employee', department: 'Engineering', status: 'Active', lastLogin: '2026-10-01' },
         ]
         setUsersList(fallback)
         setStats(prev => ({ ...prev, totalUsers: fallback.length, activeUsers: fallback.length }))
@@ -134,8 +134,7 @@ export default function AdminPage() {
   const getRoleColor = (role) => {
     switch (role) {
       case 'admin': return { bg: 'rgba(228, 164, 189, 0.18)', color: 'var(--accent)' }
-      case 'planner': return { bg: 'rgba(126, 196, 207, 0.18)', color: 'var(--dept-snt)' }
-      case 'dept_head': return { bg: 'rgba(109, 184, 123, 0.18)', color: 'var(--status-healthy)' }
+      case 'employee': return { bg: 'rgba(126, 196, 207, 0.18)', color: 'var(--dept-snt)' }
       default: return { bg: 'rgba(150,150,150,0.15)', color: 'var(--text-muted)' }
     }
   }
@@ -143,8 +142,7 @@ export default function AdminPage() {
   const getRoleLabel = (role) => {
     switch (role) {
       case 'admin': return 'System Admin'
-      case 'planner': return 'Block Planner'
-      case 'dept_head': return 'Dept. Head'
+      case 'employee': return 'Employee'
       default: return role
     }
   }
@@ -197,14 +195,6 @@ export default function AdminPage() {
               {refreshing ? 'Refreshing...' : 'Refresh'}
             </button>
 
-            {/* Demo Role Switcher */}
-            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>Demo Role:</span>
-              <button onClick={() => demoLogin('admin')} className="btn btn-secondary" style={{ padding: '6px 10px', fontSize: '11px' }}>Admin</button>
-              <button onClick={() => demoLogin('planner')} className="btn btn-secondary" style={{ padding: '6px 10px', fontSize: '11px' }}>Planner</button>
-              <button onClick={() => demoLogin('engg')} className="btn btn-secondary" style={{ padding: '6px 10px', fontSize: '11px' }}>TMS Engg</button>
-              <button onClick={() => demoLogin('snt')} className="btn btn-secondary" style={{ padding: '6px 10px', fontSize: '11px' }}>SMMS S&T</button>
-            </div>
           </div>
         </div>
       </RevealWrapper>
