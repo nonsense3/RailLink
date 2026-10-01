@@ -22,9 +22,8 @@ router.post('/optimize-schedule', async (req, res) => {
 
 // Update API keys dynamically from the UI
 router.post('/config-keys', (req, res) => {
-  const { geminiKey, maptilerKey, rapidApiKey, ollamaKey, ollamaBaseUrl, ollamaModel } = req.body
+  const { maptilerKey, rapidApiKey, ollamaKey, ollamaBaseUrl, ollamaModel } = req.body
 
-  if (geminiKey !== undefined) config.gemini.apiKey = geminiKey
   if (maptilerKey !== undefined) config.maptiler.apiKey = maptilerKey
   if (rapidApiKey !== undefined) config.rapidApi.key = rapidApiKey
   if (ollamaKey !== undefined) config.ollama.apiKey = ollamaKey
@@ -35,7 +34,6 @@ router.post('/config-keys', (req, res) => {
     message: 'API Keys updated successfully in active session',
     ollamaConfigured: Boolean(config.ollama.apiKey || config.ollama.baseUrl),
     ollamaModel: config.ollama.model || 'gemma4',
-    geminiConfigured: Boolean(config.gemini.apiKey),
     maptilerConfigured: Boolean(config.maptiler.apiKey),
     rapidApiConfigured: Boolean(config.rapidApi.key)
   })

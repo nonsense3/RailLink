@@ -50,7 +50,6 @@ export default function AdminPage() {
   const [ollamaKey, setOllamaKey] = useState('')
   const [ollamaBaseUrl, setOllamaBaseUrl] = useState('')
   const [ollamaModel, setOllamaModel] = useState('gemma4')
-  const [geminiKey, setGeminiKey] = useState('')
   const [savingAi, setSavingAi] = useState(false)
   const [aiSaveMsg, setAiSaveMsg] = useState(null)
   const [copiedUrl, setCopiedUrl] = useState(null)
@@ -76,13 +75,12 @@ export default function AdminPage() {
       const res = await api.post('/ai/config-keys', {
         ollamaKey: ollamaKey.trim() || undefined,
         ollamaBaseUrl: ollamaBaseUrl.trim() || undefined,
-        ollamaModel: ollamaModel.trim() || 'gemma4',
-        geminiKey: geminiKey.trim() || undefined
+        ollamaModel: ollamaModel.trim() || 'gemma4'
       })
       await loadAiStatus()
       setAiSaveMsg({
         type: 'success',
-        text: `✓ AI Settings updated! Active Engine: ${res.ollamaConfigured ? 'Ollama (' + (res.ollamaModel || 'gemma4') + ')' : res.geminiConfigured ? 'Google Gemini' : 'Local Engine'}`
+        text: `✓ AI Settings updated! Active Engine: ${res.ollamaConfigured ? 'Ollama (' + (res.ollamaModel || 'gemma4') + ')' : 'Local Engine'}`
       })
     } catch (err) {
       setAiSaveMsg({ type: 'error', text: `Failed to update: ${err.message}` })
@@ -591,7 +589,7 @@ export default function AdminPage() {
         <RevealWrapper delay={0.2}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2xl)' }}>
 
-            {/* AI Engine Configuration (Ollama Gemma 4 + Gemini) */}
+            {/* AI Engine Configuration (Ollama Gemma 4) */}
             <div className="card" style={{ padding: 'var(--space-xl)', border: '1px solid var(--border)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 'var(--space-md)', marginBottom: 'var(--space-lg)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -600,20 +598,20 @@ export default function AdminPage() {
                   </div>
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                      <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>AI Intelligence Engine</h3>
+                      <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>AI Intelligence Engine (Ollama Gemma 4)</h3>
                       <span className="badge" style={{
-                        background: aiStatus?.provider === 'Ollama' ? 'rgba(109, 184, 123, 0.15)' : 'rgba(228, 164, 189, 0.15)',
-                        color: aiStatus?.provider === 'Ollama' ? 'var(--status-healthy)' : 'var(--accent)',
+                        background: aiStatus?.configured ? 'rgba(109, 184, 123, 0.15)' : 'rgba(228, 164, 189, 0.15)',
+                        color: aiStatus?.configured ? 'var(--status-healthy)' : 'var(--accent)',
                         fontWeight: 800,
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: '4px'
                       }}>
-                        <CheckCircle2 size={11} /> {aiStatus?.provider === 'Ollama' ? `Active: Ollama (${aiStatus?.model || 'gemma4'})` : aiStatus?.configured ? 'Active: Google Gemini' : 'Local Fallback'}
+                        <CheckCircle2 size={11} /> {aiStatus?.configured ? `Active: Ollama (${aiStatus?.model || 'gemma4'})` : 'Local Fallback'}
                       </span>
                     </div>
                     <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
-                      Powers defect photo authenticity verification and AI schedule optimization. Prioritizes Ollama (Gemma 4).
+                      Powers defect photo authenticity verification and AI schedule optimization exclusively using Ollama Gemma 4.
                     </p>
                   </div>
                 </div>
@@ -630,7 +628,7 @@ export default function AdminPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 'var(--space-md)' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px', color: 'var(--text-secondary)' }}>
-                      Ollama API Key (Remote / Cloud)
+                      Ollama API Key (https://ollama.com)
                     </label>
                     <input
                       type="password"
@@ -654,11 +652,11 @@ export default function AdminPage() {
                       className="input"
                       value={ollamaBaseUrl}
                       onChange={(e) => setOllamaBaseUrl(e.target.value)}
-                      placeholder="http://localhost:11434 or remote URL"
+                      placeholder="https://ollama.com or http://localhost:11434"
                       style={{ width: '100%', fontSize: '0.85rem' }}
                     />
                     <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
-                      Default: http://localhost:11434 (or remote hosted Ollama instance)
+                      Default: https://ollama.com (or local http://localhost:11434)
                     </span>
                   </div>
 
@@ -675,24 +673,7 @@ export default function AdminPage() {
                       style={{ width: '100%', fontSize: '0.85rem' }}
                     />
                     <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
-                      Target model tag (e.g. gemma4, gemma:7b, gemma2, etc.)
-                    </span>
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px', color: 'var(--text-secondary)' }}>
-                      Google Gemini API Key (Fallback)
-                    </label>
-                    <input
-                      type="password"
-                      className="input"
-                      value={geminiKey}
-                      onChange={(e) => setGeminiKey(e.target.value)}
-                      placeholder="Optional fallback Gemini key"
-                      style={{ width: '100%', fontSize: '0.85rem' }}
-                    />
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
-                      Used automatically if Ollama is unreachable.
+                      Target model tag (e.g. gemma4, gemma4:31b)
                     </span>
                   </div>
                 </div>

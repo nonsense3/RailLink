@@ -40,7 +40,7 @@ router.post('/photo', async (req, res) => {
 
 /**
  * POST /api/upload/analyze
- * Run Gemini Vision AI on an already-uploaded photo URL.
+ * Run Ollama Gemma 4 Vision AI on an already-uploaded photo URL.
  * Must be called AFTER /photo upload, BEFORE submitting the defect.
  *
  * Body: { photoUrl: "https://res.cloudinary.com/..." }
@@ -53,7 +53,7 @@ router.post('/analyze', async (req, res) => {
       return res.status(400).json({ error: 'photoUrl is required' })
     }
 
-    console.log(`[AI Analyze]: Running Gemini Vision on ${photoUrl}`)
+    console.log(`[AI Analyze]: Running Ollama Gemma 4 Vision on ${photoUrl}`)
     const analysis = await analyzeDefectPhoto(photoUrl)
 
     if (!analysis.isRailwayDefect) {

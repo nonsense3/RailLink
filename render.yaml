@@ -31,8 +31,6 @@ services:
         value: indian-railway-irctc.p.rapidapi.com
       - key: MAPTILER_API_KEY
         sync: false
-      - key: GEMINI_API_KEY
-        sync: false
       - key: OLLAMA_API_KEY
         sync: false
       - key: OLLAMA_BASE_URL

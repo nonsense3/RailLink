@@ -2,96 +2,22 @@ import axios from 'axios'
 import { config } from '../config/env.js'
 
 /**
- * Call Google Gemini API with optional image (Vision)
+ * Robust JSON extractor for LLM outputs that may contain markdown or commentary
  */
-async function callGemini(prompt, systemInstruction = '', imageUrl = null) {
-  const apiKey = config.gemini.apiKey
-  if (!apiKey) {
-    throw new Error('GEMINI_API_KEY not configured in server/.env')
-  }
+function extractJson(text) {
+  if (!text || typeof text !== 'string') return null
+  const cleaned = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim()
+  try {
+    return JSON.parse(cleaned)
+  } catch {}
 
-  const MODELS = ['gemma-2-9b-it']
-  let lastError = null
-
-  // Build parts — text always first, image second if provided
-  const parts = [{ text: prompt }]
-
-  if (imageUrl) {
-    // Fetch image and convert to base64 for Gemini inline_data
+  const jsonMatch = text.match(/\{[\s\S]*\}/)
+  if (jsonMatch) {
     try {
-      let mimeType = 'image/jpeg'
-      let base64Data = ''
-
-      if (imageUrl.startsWith('data:')) {
-        const split = imageUrl.split(';base64,')
-        mimeType = split[0].replace('data:', '') || 'image/jpeg'
-        base64Data = split[1] || ''
-      } else {
-        const imgRes = await axios.get(imageUrl, { responseType: 'arraybuffer', timeout: 15000 })
-        mimeType = imgRes.headers['content-type']?.split(';')[0] || 'image/jpeg'
-        base64Data = Buffer.from(imgRes.data).toString('base64')
-      }
-
-      if (base64Data) {
-        parts.push({ inline_data: { mime_type: mimeType, data: base64Data } })
-      }
-    } catch (imgErr) {
-      throw new Error(`Failed to fetch image for analysis: ${imgErr.message}`)
-    }
+      return JSON.parse(jsonMatch[0])
+    } catch {}
   }
-
-  const payload = {
-    contents: [{ role: 'user', parts }],
-    generationConfig: {
-      temperature: 0.1,
-      maxOutputTokens: 2048
-    }
-  }
-
-  if (systemInstruction) {
-    payload.systemInstruction = { parts: [{ text: systemInstruction }] }
-  }
-
-  for (const model of MODELS) {
-    try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
-      const res = await axios.post(url, payload, {
-        headers: { 'Content-Type': 'application/json' },
-        timeout: 30000
-      })
-
-      const candidate = res.data?.candidates?.[0]
-      if (!candidate) {
-        const blockReason = res.data?.promptFeedback?.blockReason
-        throw new Error(`Gemini returned no candidates. Block reason: ${blockReason || 'unknown'}`)
-      }
-
-      // Find the text part (Gemini 3.8 may have thoughts or multiple parts)
-      const textPart = candidate?.content?.parts?.find(p => p.text) || candidate?.content?.parts?.[0]
-      const text = textPart?.text
-      if (!text) {
-        const finishReason = candidate?.finishReason
-        throw new Error(`Empty Gemini response. Finish reason: ${finishReason || 'unknown'}`)
-      }
-
-      const cleaned = text
-        .replace(/^```json\s*/i, '')
-        .replace(/^```\s*/i, '')
-        .replace(/```\s*$/i, '')
-        .trim()
-
-      try {
-        return JSON.parse(cleaned)
-      } catch {
-        return { rawResponse: text }
-      }
-    } catch (modelErr) {
-      lastError = modelErr
-      console.warn(`[AI Service]: Model ${model} returned error (${modelErr.response?.status || modelErr.message}), trying next model...`)
-    }
-  }
-
-  throw lastError || new Error('All AI models failed to respond')
+  return null
 }
 
 /**
@@ -100,7 +26,7 @@ async function callGemini(prompt, systemInstruction = '', imageUrl = null) {
  */
 async function callOllama(prompt, systemInstruction = '', imageUrl = null) {
   const { apiKey, baseUrl, model } = config.ollama
-  const cleanBaseUrl = (baseUrl || 'http://localhost:11434').replace(/\/+$/, '')
+  const cleanBaseUrl = (baseUrl || 'https://ollama.com').replace(/\/+$/, '')
   const selectedModel = model || 'gemma4'
 
   let rawBase64 = ''
@@ -122,6 +48,7 @@ async function callOllama(prompt, systemInstruction = '', imageUrl = null) {
   const headers = { 'Content-Type': 'application/json' }
   if (apiKey) {
     headers['Authorization'] = `Bearer ${apiKey}`
+    headers['x-api-key'] = apiKey
   }
 
   // Attempt 1: Native Ollama /api/chat
@@ -146,12 +73,9 @@ async function callOllama(prompt, systemInstruction = '', imageUrl = null) {
     const res = await axios.post(`${cleanBaseUrl}/api/chat`, payload, { headers, timeout: 60000 })
     const content = res.data?.message?.content
     if (content) {
-      const cleaned = content.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim()
-      try {
-        return JSON.parse(cleaned)
-      } catch {
-        return { rawResponse: content }
-      }
+      const parsed = extractJson(content)
+      if (parsed) return parsed
+      return { rawResponse: content }
     }
   } catch (nativeErr) {
     console.warn(`[Ollama native /api/chat]: ${nativeErr.response?.status || nativeErr.message}, trying /v1/chat/completions...`)
@@ -190,54 +114,21 @@ async function callOllama(prompt, systemInstruction = '', imageUrl = null) {
 }
 
 /**
- * Robust JSON extractor for LLM outputs that may contain markdown or commentary
- */
-function extractJson(text) {
-  if (!text || typeof text !== 'string') return null
-  const cleaned = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim()
-  try {
-    return JSON.parse(cleaned)
-  } catch {}
-
-  const jsonMatch = text.match(/\{[\s\S]*\}/)
-  if (jsonMatch) {
-    try {
-      return JSON.parse(jsonMatch[0])
-    } catch {}
-  }
-  return null
-}
-
-/**
- * Universal AI Caller — Prefers Ollama (Gemma 4) if key/host is set, with Gemini fallback
+ * Universal AI Caller — Powered by Ollama Gemma 4
  */
 async function callAi(prompt, systemInstruction = '', imageUrl = null) {
-  const hasOllama = Boolean(config.ollama.apiKey || (config.ollama.baseUrl && config.ollama.baseUrl !== 'http://localhost:11434'))
+  const hasOllama = Boolean(config.ollama.apiKey || config.ollama.baseUrl)
 
   if (hasOllama) {
-    try {
-      console.log(`[AI Engine]: Dispatching request to Ollama (${config.ollama.model || 'gemma4'}) at ${config.ollama.baseUrl}`)
-      return await callOllama(prompt, systemInstruction, imageUrl)
-    } catch (ollamaErr) {
-      console.warn(`[Ollama Error]: ${ollamaErr.message}. Falling back to Gemini...`)
-    }
-  }
-
-  // Fallback to Gemini if configured
-  if (config.gemini.apiKey) {
-    return await callGemini(prompt, systemInstruction, imageUrl)
-  }
-
-  // If local Ollama endpoint is configured, try it as final resort
-  if (config.ollama.baseUrl) {
+    console.log(`[AI Engine]: Dispatching request to Ollama (${config.ollama.model || 'gemma4'}) at ${config.ollama.baseUrl}`)
     return await callOllama(prompt, systemInstruction, imageUrl)
   }
 
-  throw new Error('Neither Ollama nor Gemini is reachable or configured.')
+  throw new Error('Ollama is not configured. Please set OLLAMA_API_KEY.')
 }
 
 /**
- * Analyze a defect photo using Ollama Gemma 4 (or Gemini fallback).
+ * Analyze a defect photo using Ollama Gemma 4.
  * Verifies the image is a real Indian Railways track/infrastructure defect.
  * Rejects random/unrelated photos before they enter the system.
  *
@@ -245,18 +136,17 @@ async function callAi(prompt, systemInstruction = '', imageUrl = null) {
  * @returns {object} { isRailwayDefect, confidence, defectType, severity, description, rejectionReason }
  */
 export async function analyzeDefectPhoto(imageUrl) {
-  const hasOllama = Boolean(config.ollama.apiKey || (config.ollama.baseUrl && config.ollama.baseUrl !== 'http://localhost:11434'))
-  const hasGemini = Boolean(config.gemini.apiKey)
+  const hasOllama = Boolean(config.ollama.apiKey || config.ollama.baseUrl)
 
-  // If neither Ollama nor Gemini is configured, pass through with a warning
-  if (!hasOllama && !hasGemini) {
-    console.warn('[AI Analysis]: Neither OLLAMA_API_KEY nor GEMINI_API_KEY configured — skipping image verification')
+  // If Ollama is not configured, pass through with a warning
+  if (!hasOllama) {
+    console.warn('[AI Analysis]: OLLAMA_API_KEY not configured — skipping image verification')
     return {
       isRailwayDefect: true,
       confidence: 0,
       defectType: 'Unknown',
       severity: 'Medium',
-      description: 'AI verification skipped (AI key not configured)',
+      description: 'AI verification skipped (OLLAMA_API_KEY not configured)',
       rejectionReason: null,
       aiVerified: false
     }
@@ -314,7 +204,7 @@ Respond ONLY with this exact JSON (no extra text):
       description: result.description || '',
       rejectionReason: result.rejectionReason || null,
       aiVerified: true,
-      engine: hasOllama ? `Ollama (${config.ollama.model || 'gemma4'})` : 'Google Gemini'
+      engine: `Ollama (${config.ollama.model || 'gemma4'})`
     }
   } catch (err) {
     console.error('[AI Defect Analysis Error]:', err.message)
@@ -333,13 +223,12 @@ Respond ONLY with this exact JSON (no extra text):
 }
 
 /**
- * Generate AI-Optimized Block Schedule
+ * Generate AI-Optimized Block Schedule using Ollama Gemma 4
  */
 export async function generateOptimizedSchedule(requests = [], corridors = []) {
-  const hasOllama = Boolean(config.ollama.apiKey || (config.ollama.baseUrl && config.ollama.baseUrl !== 'http://localhost:11434'))
-  const hasGemini = Boolean(config.gemini.apiKey)
+  const hasOllama = Boolean(config.ollama.apiKey || config.ollama.baseUrl)
 
-  if (!hasOllama && !hasGemini) {
+  if (!hasOllama) {
     // Intelligent local fallback
     return {
       confidence: 93.4,
@@ -387,7 +276,7 @@ Return a strict JSON object with this exact schema:
 
   try {
     const result = await callAi(prompt, 'You are an advanced railway scheduling and optimization AI. Always respond with valid JSON only, no extra commentary.')
-    result.source = hasOllama ? `Ollama (${config.ollama.model || 'gemma4'} - Live AI)` : 'Google Gemini 2.0 Flash (Live AI)'
+    result.source = `Ollama (${config.ollama.model || 'gemma4'} - Live AI)`
     return result
   } catch (err) {
     console.warn('[AI Schedule Error]:', err.message, 'Falling back to local planner.')
@@ -396,7 +285,7 @@ Return a strict JSON object with this exact schema:
       totalBlocks: 20,
       conflictsResolved: 4,
       uptimeImprovement: '+3.5%',
-      source: `RailLink Engine (AI fallback: ${err.message})`,
+      source: `RailLink Engine (Ollama fallback: ${err.message})`,
       schedule: [
         { id: 1, corridor: 'Delhi-Agra Sec 1', dept: 'Engineering', task: 'Rail Renewal', start: '02:00', end: '05:30', priority: 5, reason: 'Emergency rail renewal window' },
         { id: 2, corridor: 'Mumbai-Pune Main', dept: 'Multi-Department', task: 'Joint OHE + Track Block', start: '01:30', end: '05:00', priority: 5, reason: 'Merged Engineering and Traction block to save 2h track possession' }
@@ -406,26 +295,15 @@ Return a strict JSON object with this exact schema:
 }
 
 /**
- * Check AI API status (Ollama Gemma 4 or Gemini)
+ * Check AI API status (Ollama Gemma 4)
  */
 export function getAiStatus() {
-  const hasOllama = Boolean(config.ollama.apiKey || (config.ollama.baseUrl && config.ollama.baseUrl !== 'http://localhost:11434'))
-  const hasGemini = Boolean(config.gemini.apiKey && config.gemini.apiKey.trim().length > 0)
-
-  if (hasOllama) {
-    return {
-      configured: true,
-      provider: 'Ollama',
-      model: config.ollama.model || 'gemma4',
-      status: 'Ready',
-      baseUrl: config.ollama.baseUrl || 'http://localhost:11434'
-    }
-  }
-
+  const hasOllama = Boolean(config.ollama.apiKey || config.ollama.baseUrl)
   return {
-    configured: hasGemini,
-    provider: hasGemini ? 'Google AI Studio' : 'None',
-    model: hasGemini ? 'gemini-2.0-flash' : (config.ollama.model || 'gemma4'),
-    status: hasGemini ? 'Ready' : 'Ollama or Gemini API Key required'
+    configured: hasOllama,
+    provider: 'Ollama',
+    model: config.ollama.model || 'gemma4',
+    status: hasOllama ? 'Ready' : 'OLLAMA_API_KEY required',
+    baseUrl: config.ollama.baseUrl || 'https://ollama.com'
   }
 }
