@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { supabase } from '../lib/supabase'
 
-const ADMIN_EMAILS = ['ankitdey061@gmail.com', 'dasouvik122005@gmail.com'];
+const ADMIN_EMAILS = ['ankitdey061@gmail.com', 'dasouvik122005@gmail.com', 'catch2sanchari@gmail.com'];
 
 export const useAuthStore = create((set, get) => ({
   user: null,

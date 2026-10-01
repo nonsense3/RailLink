@@ -1,7 +1,7 @@
 import express from 'express'
 const router = express.Router()
 
-const ADMIN_EMAILS = ['ankitdey061@gmail.com', 'dasouvik122005@gmail.com'];
+const ADMIN_EMAILS = ['ankitdey061@gmail.com', 'dasouvik122005@gmail.com', 'catch2sanchari@gmail.com'];
 
 router.post('/login', (req, res) => {
   const { email } = req.body
