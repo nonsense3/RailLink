@@ -56,10 +56,16 @@ app.use('/api/config', configRouter)
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
+// Explicit 404 for unmatched /api/* routes — MUST be before SPA fallback
+app.use('/api/*', (req, res) => {
+  res.status(404).json({ error: `API route not found: ${req.originalUrl}` })
+})
+
 // Serve built frontend assets if present (Render / Monorepo deployment)
 const clientDistPath = path.resolve(__dirname, '../../client/dist')
 if (fs.existsSync(clientDistPath)) {
   app.use(express.static(clientDistPath))
+  // SPA fallback — only for non-API routes
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api')) return next()
     res.sendFile(path.join(clientDistPath, 'index.html'))
