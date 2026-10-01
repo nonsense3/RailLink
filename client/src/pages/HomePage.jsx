@@ -1,70 +1,78 @@
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Train, Shield, Activity, Sparkles, ArrowRight, Zap, Globe } from 'lucide-react'
+import { Train, CalendarCheck, ShieldCheck, Activity, ArrowRight } from 'lucide-react'
 
 export default function HomePage() {
   const containerVars = {
     hidden: { opacity: 0 },
     show: {
       opacity: 1,
-      transition: { staggerChildren: 0.2, delayChildren: 0.1 }
+      transition: { staggerChildren: 0.15, delayChildren: 0.1 }
     }
   }
 
   const itemVars = {
-    hidden: { y: 30, opacity: 0 },
-    show: { y: 0, opacity: 1, transition: { type: 'spring', stiffness: 80 } }
+    hidden: { y: 20, opacity: 0 },
+    show: { y: 0, opacity: 1, transition: { type: 'spring', stiffness: 90, damping: 15 } }
   }
 
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)',
-      color: 'white',
+      backgroundColor: '#fcfaf9',
+      color: '#2d2d2d',
       fontFamily: '"Inter", sans-serif',
-      overflow: 'hidden',
+      overflowX: 'hidden',
       position: 'relative'
     }}>
-      {/* Background Decorative Elements */}
+      {/* Soft Background Blobs matching Login Page aesthetic */}
       <div style={{
-        position: 'absolute', top: '-10%', left: '-10%', width: '40vw', height: '40vw',
-        background: 'radial-gradient(circle, rgba(99,102,241,0.15) 0%, transparent 70%)',
-        borderRadius: '50%', filter: 'blur(60px)', zIndex: 0
+        position: 'absolute', top: '-20%', left: '-10%', width: '60vw', height: '60vw',
+        background: 'radial-gradient(circle, rgba(235, 219, 219, 0.4) 0%, transparent 70%)',
+        borderRadius: '50%', filter: 'blur(80px)', zIndex: 0
       }} />
       <div style={{
-        position: 'absolute', bottom: '-20%', right: '-10%', width: '50vw', height: '50vw',
-        background: 'radial-gradient(circle, rgba(236,72,153,0.15) 0%, transparent 70%)',
-        borderRadius: '50%', filter: 'blur(80px)', zIndex: 0
+        position: 'absolute', bottom: '-10%', right: '-10%', width: '50vw', height: '50vw',
+        background: 'radial-gradient(circle, rgba(228, 179, 194, 0.2) 0%, transparent 70%)',
+        borderRadius: '50%', filter: 'blur(100px)', zIndex: 0
       }} />
 
       {/* Navigation */}
       <nav style={{
         position: 'relative', zIndex: 10, display: 'flex', justifyContent: 'space-between',
         alignItems: 'center', padding: '1.5rem 4rem',
-        borderBottom: '1px solid rgba(255,255,255,0.05)',
-        backdropFilter: 'blur(10px)'
+        borderBottom: '1px solid rgba(0,0,0,0.04)',
+        backgroundColor: 'rgba(252, 250, 249, 0.8)',
+        backdropFilter: 'blur(12px)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <div style={{
-            background: 'linear-gradient(135deg, #6366f1, #a855f7)',
-            padding: '0.5rem', borderRadius: '12px',
-            boxShadow: '0 0 20px rgba(99, 102, 241, 0.4)'
+            background: '#e4a5b8',
+            padding: '0.4rem', borderRadius: '8px',
+            boxShadow: '0 4px 14px rgba(228, 165, 184, 0.3)'
           }}>
-            <Train size={24} color="white" />
+            <Train size={22} color="white" />
           </div>
-          <span style={{ fontSize: '1.5rem', fontWeight: 800, tracking: '-0.05em' }}>RailLink</span>
+          <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
+            <span style={{ fontSize: '0.5rem', fontWeight: 800, color: '#e4a5b8', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Ministry of Railways</span>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.2rem', marginTop: '0.1rem' }}>
+              <span style={{ fontSize: '1.25rem', fontWeight: 900, color: '#222', letterSpacing: '-0.02em' }}>RAIL</span>
+              <span style={{ fontSize: '1.25rem', fontWeight: 900, color: '#e4a5b8', fontStyle: 'italic', letterSpacing: '-0.02em' }}>LINK</span>
+            </div>
+          </div>
         </div>
         <div>
           <Link to="/login" style={{
-            textDecoration: 'none', color: 'white', fontWeight: 600, fontSize: '0.95rem',
-            padding: '0.75rem 1.5rem', background: 'rgba(255,255,255,0.1)',
-            borderRadius: '999px', transition: 'all 0.3s ease',
-            border: '1px solid rgba(255,255,255,0.2)'
+            textDecoration: 'none', color: '#fff', fontWeight: 600, fontSize: '0.9rem',
+            padding: '0.6rem 1.4rem', backgroundColor: '#e4a5b8',
+            borderRadius: '6px', transition: 'all 0.2s ease',
+            boxShadow: '0 4px 10px rgba(228, 165, 184, 0.25)',
+            display: 'inline-flex', alignItems: 'center', gap: '0.4rem'
           }}
-          onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.2)' }}
-          onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)' }}
+          onMouseOver={(e) => { e.currentTarget.style.backgroundColor = '#d392a8'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+          onMouseOut={(e) => { e.currentTarget.style.backgroundColor = '#e4a5b8'; e.currentTarget.style.transform = 'translateY(0)'; }}
           >
-            Access Portal
+            Access Portal <ArrowRight size={14} />
           </Link>
         </div>
       </nav>
@@ -72,70 +80,59 @@ export default function HomePage() {
       {/* Hero Section */}
       <main style={{
         position: 'relative', zIndex: 10, display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center', padding: '6rem 2rem',
-        textAlign: 'center', minHeight: 'calc(100vh - 80px)'
+        alignItems: 'center', justifyContent: 'center', padding: '5rem 2rem',
+        textAlign: 'center'
       }}>
-        <motion.div variants={containerVars} initial="hidden" animate="show" style={{ maxWidth: '800px' }}>
+        <motion.div variants={containerVars} initial="hidden" animate="show" style={{ maxWidth: '850px' }}>
+          
           <motion.div variants={itemVars} style={{
-            display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
-            background: 'rgba(99, 102, 241, 0.2)', color: '#a5b4fc',
-            padding: '0.5rem 1rem', borderRadius: '999px', fontSize: '0.85rem',
-            fontWeight: 600, marginBottom: '2rem', border: '1px solid rgba(99, 102, 241, 0.3)'
+            display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+            backgroundColor: 'rgba(228, 165, 184, 0.15)', color: '#b56d83',
+            padding: '0.4rem 1rem', borderRadius: '999px', fontSize: '0.8rem',
+            fontWeight: 700, marginBottom: '2rem', letterSpacing: '0.02em',
+            border: '1px solid rgba(228, 165, 184, 0.3)'
           }}>
-            <Sparkles size={14} />
-            Powered by Gemma AI
+            <Activity size={14} />
+            AI-Powered Operations
           </motion.div>
 
           <motion.h1 variants={itemVars} style={{
-            fontSize: '4.5rem', fontWeight: 800, lineHeight: 1.1, marginBottom: '1.5rem',
-            background: 'linear-gradient(to right, #ffffff, #94a3b8)',
-            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-            letterSpacing: '-0.02em'
+            fontSize: '4rem', fontWeight: 900, lineHeight: 1.15, marginBottom: '1.5rem',
+            color: '#1a1a1a', letterSpacing: '-0.03em'
           }}>
-            The Future of Railway <br/> Operations & Planning
+            Maximize Asset Availability <br/> for Train Operations
           </motion.h1>
 
           <motion.p variants={itemVars} style={{
-            fontSize: '1.25rem', color: '#94a3b8', lineHeight: 1.6, marginBottom: '3rem',
-            maxWidth: '600px', margin: '0 auto 3rem auto'
+            fontSize: '1.2rem', color: '#666', lineHeight: 1.6, marginBottom: '3rem',
+            maxWidth: '650px', margin: '0 auto 3rem auto', fontWeight: 400
           }}>
-            An intelligent, AI-driven platform for generating optimized block plans, managing track defects, and coordinating seamless departmental workflows.
+            An intelligent platform engineered for Indian Railways to generate optimized block plans, monitor track defects, and seamlessly coordinate multi-department workflows.
           </motion.p>
-
-          <motion.div variants={itemVars} style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
-            <Link to="/login" style={{
-              display: 'flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none',
-              background: 'linear-gradient(135deg, #6366f1, #a855f7)', color: 'white',
-              padding: '1rem 2.5rem', borderRadius: '999px', fontWeight: 600, fontSize: '1.1rem',
-              boxShadow: '0 10px 25px rgba(99, 102, 241, 0.4)', transition: 'transform 0.2s'
-            }}
-            onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-2px)' }}
-            onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)' }}
-            >
-              Get Started <ArrowRight size={18} />
-            </Link>
-          </motion.div>
         </motion.div>
 
-        {/* Feature Cards */}
+        {/* Feature Grid */}
         <motion.div 
           variants={containerVars} initial="hidden" animate="show"
-          style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '2rem', width: '100%', maxWidth: '1000px', marginTop: '6rem' }}>
+          style={{ 
+            display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
+            gap: '1.5rem', width: '100%', maxWidth: '1000px', marginTop: '3rem' 
+          }}>
           
           <FeatureCard 
-            icon={<Zap size={28} color="#f43f5e" />}
-            title="AI Schedule Generation"
-            description="Leverage Gemma AI to automatically generate conflict-free, highly optimized block maintenance schedules."
+            icon={<CalendarCheck size={24} color="#b56d83" />}
+            title="AI-Optimized Scheduling"
+            description="Automatic block planning leveraging Gemma AI, XGBoost & OR-Tools for conflict-free maintenance windows."
           />
           <FeatureCard 
-            icon={<Shield size={28} color="#10b981" />}
-            title="Secure Role Management"
-            description="Enterprise-grade authentication with strict role-based access controls for Administrators and Employees."
+            icon={<ShieldCheck size={24} color="#b56d83" />}
+            title="Proactive Safety Assurance"
+            description="Proactive conflict detection ensuring maximum safety and operational integrity across all sectors."
           />
           <FeatureCard 
-            icon={<Activity size={28} color="#3b82f6" />}
-            title="Real-Time Defect Tracking"
-            description="Monitor live infrastructure health and track defects with dynamic prioritization and heatmaps."
+            icon={<Activity size={24} color="#b56d83" />}
+            title="Multi-Department Coordination"
+            description="Integrated dashboards for TRD, Engineering, and S&T to collaborate and track defects in real-time."
           />
 
         </motion.div>
@@ -147,24 +144,24 @@ export default function HomePage() {
 function FeatureCard({ icon, title, description }) {
   return (
     <motion.div 
-      whileHover={{ y: -5, background: 'rgba(255, 255, 255, 0.08)' }}
+      whileHover={{ y: -4, boxShadow: '0 12px 30px rgba(0,0,0,0.06)' }}
       style={{
-      background: 'rgba(255, 255, 255, 0.03)',
-      border: '1px solid rgba(255, 255, 255, 0.05)',
-      borderRadius: '20px',
+      backgroundColor: '#ffffff',
+      border: '1px solid rgba(0, 0, 0, 0.05)',
+      borderRadius: '16px',
       padding: '2rem',
       textAlign: 'left',
-      backdropFilter: 'blur(10px)',
+      boxShadow: '0 4px 15px rgba(0,0,0,0.02)',
       transition: 'all 0.3s ease'
     }}>
       <div style={{
-        background: 'rgba(255, 255, 255, 0.05)', display: 'inline-flex',
-        padding: '1rem', borderRadius: '16px', marginBottom: '1.5rem'
+        backgroundColor: 'rgba(228, 165, 184, 0.12)', display: 'inline-flex',
+        padding: '0.8rem', borderRadius: '12px', marginBottom: '1.25rem'
       }}>
         {icon}
       </div>
-      <h3 style={{ fontSize: '1.3rem', fontWeight: 600, marginBottom: '1rem', color: '#f8fafc' }}>{title}</h3>
-      <p style={{ color: '#94a3b8', lineHeight: 1.6, fontSize: '0.95rem' }}>{description}</p>
+      <h3 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '0.75rem', color: '#2d2d2d' }}>{title}</h3>
+      <p style={{ color: '#666', lineHeight: 1.5, fontSize: '0.95rem' }}>{description}</p>
     </motion.div>
   )
 }
