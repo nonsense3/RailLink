@@ -183,5 +183,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 <p align="center">
   Built with ❤️ for Indian Railways<br/>
-  by TEAM METAXL
+  by TEAM Axiom
 </p>
