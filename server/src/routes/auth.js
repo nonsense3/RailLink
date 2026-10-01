@@ -15,6 +15,10 @@ router.post('/register', async (req, res) => {
   try {
     const { email, password, metadata } = req.body
     
+    if (!supabase || !supabase.auth?.admin) {
+      return res.status(503).json({ error: 'Supabase admin client not initialized (missing SUPABASE_SERVICE_ROLE_KEY)' })
+    }
+
     // Create user via admin API to bypass rate limits and email confirmation
     const { data, error } = await supabase.auth.admin.createUser({
       email,

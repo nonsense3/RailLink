@@ -50,28 +50,63 @@ export const useAuthStore = create((set, get) => ({
   register: async (email, password, metadata = {}) => {
     set({ loading: true, error: null })
     try {
-      // Step 1: Create user via backend to bypass rate limits
-      const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/auth/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, metadata })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to register');
-
-      // Step 2: Now that user exists and is confirmed, sign them in directly
-      const { data: signInData, error } = await supabase.auth.signInWithPassword({
+      // Primary: Register directly through Supabase Auth (client-side)
+      const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
+        options: { data: metadata },
       })
-      if (error) throw error
 
-      let user = signInData.user
+      if (signUpError) {
+        // If Supabase hits an email rate limit, attempt backend admin creation if backend is reachable
+        if (signUpError.message?.toLowerCase().includes('rate limit')) {
+          try {
+            const backendUrl = import.meta.env.VITE_API_URL || '/api'
+            const res = await fetch(`${backendUrl}/auth/register`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email, password, metadata })
+            })
+            const contentType = res.headers.get('content-type') || ''
+            if (contentType.includes('application/json')) {
+              const resData = await res.json()
+              if (!res.ok) throw new Error(resData.error || 'Failed to register via backend')
+              // Sign in newly created confirmed user
+              const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({ email, password })
+              if (!signInErr && signInData?.user) {
+                let user = { ...signInData.user, role: ADMIN_EMAILS.includes(signInData.user.email?.toLowerCase()) ? 'admin' : (signInData.user.user_metadata?.role || 'employee') }
+                set({ user, session: signInData.session, loading: false })
+                return signInData
+              }
+            }
+          } catch {}
+          throw new Error('Supabase email rate limit exceeded. Please disable "Confirm email" in Supabase Dashboard (Authentication > Providers > Email), or try again shortly.')
+        }
+        throw signUpError
+      }
+
+      // If user was created, attempt to sign in immediately (if auto-confirmed)
+      let user = data?.user
+      let session = data?.session
+
+      if (!session && user) {
+        try {
+          const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          })
+          if (!signInErr && signInData?.session) {
+            session = signInData.session
+            user = signInData.user
+          }
+        } catch {}
+      }
+
       if (user) {
         user = { ...user, role: ADMIN_EMAILS.includes(user.email?.toLowerCase()) ? 'admin' : (user.user_metadata?.role || 'employee') }
       }
-      set({ user, session: signInData.session, loading: false })
-      return signInData
+      set({ user, session: session || null, loading: false })
+      return { user, session }
     } catch (error) {
       set({ error: error.message, loading: false })
       throw error

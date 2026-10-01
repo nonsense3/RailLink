@@ -9,19 +9,27 @@ export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [successMsg, setSuccessMsg] = useState('')
   const { login, register, loading } = useAuthStore()
   const navigate = useNavigate()
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
+    setSuccessMsg('')
     try {
       if (mode === 'login') {
         await login(email, password)
+        navigate('/dashboard')
       } else {
-        await register(email, password, { name: 'New User' })
+        const result = await register(email, password, { name: 'New User' })
+        if (result?.session) {
+          navigate('/dashboard')
+        } else {
+          setSuccessMsg('Account registered! If confirmation is required, please check your email inbox to verify before signing in.')
+          setMode('login')
+        }
       }
-      navigate('/dashboard')
     } catch (err) {
       setError(err.message || 'Authentication failed')
     }
@@ -155,6 +163,21 @@ export default function LoginPage() {
               marginBottom: 'var(--space-lg)',
             }}>
               {error}
+            </div>
+          )}
+
+          {successMsg && (
+            <div style={{
+              padding: 'var(--space-md)',
+              borderRadius: 'var(--radius-md)',
+              background: 'rgba(109, 184, 123, 0.12)',
+              color: 'var(--status-healthy)',
+              border: '1px solid rgba(109, 184, 123, 0.3)',
+              fontSize: '0.875rem',
+              marginBottom: 'var(--space-lg)',
+              fontWeight: 600
+            }}>
+              {successMsg}
             </div>
           )}
 
