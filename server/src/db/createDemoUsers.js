@@ -2,14 +2,6 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase.js'
 
 const DEMO_USERS = [
   {
-    email: 'admin@raillink.in',
-    password: 'RailLink@2025',
-    name: 'Rajesh Kumar',
-    role: 'admin',
-    department: 'Operations',
-    designation: 'Chief Operations Manager'
-  },
-  {
     email: 'planner@raillink.in',
     password: 'RailLink@2025',
     name: 'Priya Sharma',

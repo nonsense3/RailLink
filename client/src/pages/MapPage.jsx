@@ -32,6 +32,7 @@ import {
   X
 } from 'lucide-react'
 import { RAILWAY_STATIONS, ALL_TRACK_LINES, searchRailwayLocations } from '../lib/railwayLocations'
+import { calculateRiskCorridors } from '../lib/riskCorridors'
 import 'leaflet/dist/leaflet.css'
 
 // Fix Leaflet default marker icon issue in React
@@ -261,6 +262,7 @@ export default function MapPage() {
   const [filters, setFilters] = useState({
     showCorridors: true,
     showDefects: true,
+    showRiskCorridors: true,
     statusFilter: 'all',
   })
 
@@ -320,6 +322,10 @@ export default function MapPage() {
           { id: 'TDMS-OHE-308', lat: 18.9388, lng: 73.2311, type: 'Traction Distribution', severity: 'High', desc: 'OHE section insulator flashover & dropper slack', corridorName: 'Mumbai - Pune Expressway Route' },
           { id: 'TMS-DF-109', lat: 22.4048, lng: 87.9895, type: 'Engineering', severity: 'Critical', desc: 'Ballast deficiency and track settlement KM 48.0', corridorName: 'Howrah - Kharagpur Trunk Section' },
           { id: 'SMMS-SG-211', lat: 13.1100, lng: 80.1200, type: 'Signal & Telecom', severity: 'Medium', desc: 'Point machine detector slide obstruction', corridorName: 'Chennai - Arakkonam Fast Line' },
+          // Insert clustered defects for demonstration of AI Risk Corridor feature
+          { id: 'TMS-DF-112', lat: 28.1415, lng: 77.3290, type: 'Engineering', severity: 'High', desc: 'Missing pandrol clips on Up Line KM 113', corridorName: 'Delhi - Agra Semi High-Speed Corridor' },
+          { id: 'TDMS-OHE-310', lat: 28.1428, lng: 77.3312, type: 'Traction Distribution', severity: 'Critical', desc: 'OHE mast leaning on Down Line KM 113.5', corridorName: 'Delhi - Agra Semi High-Speed Corridor' },
+          { id: 'SMMS-SG-215', lat: 28.1440, lng: 77.3325, type: 'Signal & Telecom', severity: 'High', desc: 'Track circuit drop on Up Line KM 114', corridorName: 'Delhi - Agra Semi High-Speed Corridor' },
         ])
       }
     } catch (err) {
@@ -404,6 +410,11 @@ export default function MapPage() {
       return matchesSearch
     })
   }, [defectMarkers, searchQuery])
+
+  // Computed Risk Corridors
+  const activeRiskCorridors = useMemo(() => {
+    return calculateRiskCorridors(filteredDefects, 5, 3);
+  }, [filteredDefects]);
 
   // Close search suggestions on click outside
   useEffect(() => {
@@ -1049,6 +1060,15 @@ export default function MapPage() {
               <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
                 <input
                   type="checkbox"
+                  checked={filters.showRiskCorridors}
+                  onChange={e => setFilters(f => ({ ...f, showRiskCorridors: e.target.checked }))}
+                  style={{ accentColor: 'var(--status-overdue)' }}
+                />
+                <span>Risk Corridors</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
                   checked={showRailwayOverlay}
                   onChange={e => setShowRailwayOverlay(e.target.checked)}
                   style={{ accentColor: 'var(--dept-snt)' }}
@@ -1273,6 +1293,39 @@ export default function MapPage() {
                   </Popup>
                 </CircleMarker>
               ))}
+
+              {/* Risk Corridors */}
+              {filters.showRiskCorridors && activeRiskCorridors.map((rc) => (
+                <Polyline
+                  key={rc.id}
+                  positions={rc.points}
+                  pathOptions={{
+                    color: getSeverityColor(rc.severity),
+                    weight: 14,
+                    opacity: 0.35,
+                    lineCap: 'round',
+                    lineJoin: 'round'
+                  }}
+                >
+                  <Popup>
+                    <div style={{ fontFamily: 'var(--font-family)', minWidth: '240px', padding: '6px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--status-overdue)', fontWeight: 900, fontSize: '0.75rem', textTransform: 'uppercase', marginBottom: '4px' }}>
+                        <AlertTriangle size={14} /> Risk Corridor
+                      </div>
+                      <h4 style={{ fontSize: '1rem', fontWeight: 800, margin: '4px 0' }}>{rc.severity} Density</h4>
+                      <p style={{ fontSize: '0.8rem', background: 'rgba(201, 79, 79, 0.1)', color: 'var(--status-overdue)', padding: '6px 8px', borderRadius: '6px', margin: '8px 0', lineHeight: 1.4 }}>
+                        {rc.message}
+                      </p>
+                      <p style={{ fontSize: '0.8rem', fontWeight: 700, margin: '0' }}>
+                        Recommendation:
+                      </p>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '4px 0 0', lineHeight: 1.4 }}>
+                        {rc.recommendation}
+                      </p>
+                    </div>
+                  </Popup>
+                </Polyline>
+              ))}
             </MapContainer>
           </div>
         </RevealWrapper>
@@ -1456,36 +1509,62 @@ export default function MapPage() {
           {/* Corridor Status Legend */}
           <RevealWrapper delay={0.2}>
             <div className="card" style={{ padding: 'var(--space-md) var(--space-lg)' }}>
-              <span className="text-label" style={{ marginBottom: '8px', display: 'block' }}>CORRIDOR STATUS LEGEND</span>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <span className="text-label" style={{ margin: 0, display: 'block' }}>RAIL HEALTH MAP & STATUS LEGEND</span>
+                {activeRiskCorridors.length > 0 && (
+                  <span className="badge" style={{ background: 'var(--accent)', color: 'var(--text-primary)', fontSize: '0.65rem', animation: 'leafletPinPulse 2s infinite' }}>AI RISK CORRIDOR DETECTED</span>
+                )}
+              </div>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '16px' }}>
                 {[
-                  { label: 'Healthy', color: '#6db87b', count: corridors.filter(c => c.status === 'healthy').length },
-                  { label: 'Active Block', color: '#d4a057', count: corridors.filter(c => c.status === 'active_block').length },
-                  { label: 'Due Maint.', color: '#e4a4bd', count: corridors.filter(c => c.status === 'due').length },
-                  { label: 'Overdue', color: '#c94f4f', count: corridors.filter(c => c.status === 'overdue').length },
+                  { label: 'Healthy', id: 'healthy', color: '#6db87b', count: corridors.filter(c => c.status === 'healthy').length, icon: '🟢' },
+                  { label: 'Attention', id: 'due', color: '#e4a4bd', count: corridors.filter(c => c.status === 'due').length, icon: '🟡' },
+                  { label: 'High Risk', id: 'active_block', color: '#d4a057', count: corridors.filter(c => c.status === 'active_block').length, icon: '🟠' },
+                  { label: 'Critical', id: 'overdue', color: '#c94f4f', count: corridors.filter(c => c.status === 'overdue').length, icon: '🔴' },
                 ].map((item) => (
                   <button
                     key={item.label}
-                    onClick={() => setFilters(f => ({ ...f, statusFilter: f.statusFilter === item.label.toLowerCase().replace(/ /g, '_') ? 'all' : item.label.toLowerCase().replace(/ /g, '_') }))}
+                    onClick={() => setFilters(f => ({ ...f, statusFilter: f.statusFilter === item.id ? 'all' : item.id }))}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
                       gap: '8px',
-                      padding: '6px 8px',
+                      padding: '8px 10px',
                       borderRadius: '8px',
-                      background: filters.statusFilter === item.label.toLowerCase().replace(/ /g, '_') ? 'rgba(0,0,0,0.06)' : 'transparent',
-                      border: 'none',
+                      background: filters.statusFilter === item.id ? 'rgba(0,0,0,0.06)' : 'var(--bg-secondary)',
+                      border: '1px solid var(--border)',
                       cursor: 'pointer',
-                      fontSize: '0.78rem',
-                      fontWeight: 700
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      transition: 'all 0.2s ease'
                     }}
                   >
-                    <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: item.color }} />
+                    <span>{item.icon}</span>
                     <span style={{ flex: 1, textAlign: 'left' }}>{item.label}</span>
-                    <span style={{ color: 'var(--text-muted)', fontSize: '10px' }}>{item.count}</span>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '11px', background: 'rgba(0,0,0,0.05)', padding: '2px 6px', borderRadius: '4px' }}>{item.count}</span>
                   </button>
                 ))}
               </div>
+
+              {activeRiskCorridors.length > 0 && (
+                <div style={{ background: 'rgba(201, 79, 79, 0.08)', border: '1px dashed var(--status-overdue)', padding: '12px', borderRadius: 'var(--radius-card)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--status-overdue)', fontWeight: 800, fontSize: '0.8rem', marginBottom: '4px' }}>
+                    <AlertTriangle size={14} /> Intelligence Alert
+                  </div>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-primary)', margin: '0 0 8px 0', lineHeight: 1.4 }}>
+                    RailLink has identified <strong>{activeRiskCorridors.length} unusually high concentration(s)</strong> of defects forming contiguous Risk Corridors.
+                  </p>
+                  {activeRiskCorridors.map(rc => (
+                    <div key={rc.id} style={{ background: 'var(--bg-primary)', padding: '10px', borderRadius: '6px', marginBottom: '6px', borderLeft: `4px solid ${getSeverityColor(rc.severity)}`, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 800 }}>{rc.message}</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px', lineHeight: 1.4 }}>
+                        💡 <strong>Recommendation:</strong> {rc.recommendation}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </RevealWrapper>
         </div>

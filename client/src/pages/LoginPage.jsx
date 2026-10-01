@@ -231,7 +231,6 @@ export default function LoginPage() {
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(85px, 1fr))', gap: 'var(--space-sm)' }}>
               {[
-                { role: 'admin', label: 'Admin', color: 'var(--text-primary)', hoverBg: 'var(--text-primary)', hoverText: 'var(--text-inverse)', shadow: 'rgba(0,0,0,0.2)' },
                 { role: 'planner', label: 'Planner', color: 'var(--accent)', hoverBg: 'var(--accent)', hoverText: '#ffffff', shadow: 'rgba(228, 164, 189, 0.4)' },
                 { role: 'engg', label: 'Engineering', color: 'var(--dept-engg)', hoverBg: 'var(--dept-engg)', hoverText: '#ffffff', shadow: 'rgba(74, 124, 89, 0.35)' },
                 { role: 'snt', label: 'Signal & Telecom', color: 'var(--dept-snt)', hoverBg: 'var(--dept-snt)', hoverText: '#ffffff', shadow: 'rgba(69, 123, 157, 0.35)' },

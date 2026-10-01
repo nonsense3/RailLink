@@ -61,3 +61,8 @@ Thumbs.db
 # Temporary media & cache
 .tempmediaStorage/
 .cache/
+
+# Local keys
+key.txt
+*.key
+keys.txt
