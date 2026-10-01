@@ -31,7 +31,8 @@ import {
   Navigation,
   Train,
   Zap,
-  Trash2
+  Trash2,
+  Activity
 } from 'lucide-react'
 
 export const INDIAN_RAILWAY_DIVISIONS = [
@@ -102,6 +103,23 @@ export const TRACK_LINES = [
   'Turnout Crossover 14A/B'
 ]
 
+const generateSimulationData = (defect) => {
+  if (!defect) return { startRisk: 72, endRisk: 86, trains: 6, blocks: 2, restriction: 18, delay: 47 };
+  const seed = (defect.id || '').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) + (defect.assetType || '').length;
+  let baseRisk = 50;
+  if (defect.severity === 'Critical') baseRisk = 75;
+  if (defect.severity === 'High') baseRisk = 65;
+  if (defect.severity === 'Medium') baseRisk = 45;
+  if (defect.severity === 'Low') baseRisk = 30;
+  const startRisk = baseRisk + (seed % 15);
+  const endRisk = Math.min(99, startRisk + 12 + (seed % 10));
+  const trains = 2 + (seed % 12);
+  const blocks = 1 + (seed % 3);
+  const restriction = 5 + (seed % 25);
+  const delay = 15 + (seed % 90);
+  return { startRisk, endRisk, trains, blocks, restriction, delay };
+}
+
 export default function DefectPage() {
   const navigate = useNavigate()
   const [defects, setDefects] = useState([])
@@ -114,7 +132,10 @@ export default function DefectPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [activeTab, setActiveTab] = useState('gallery') // 'gallery' | 'table' | 'upload'
   const [selectedDefect, setSelectedDefect] = useState(null)
+  const [showSimulation, setShowSimulation] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
+  
+  const simulationData = selectedDefect ? generateSimulationData(selectedDefect) : null;
   const [uploadSuccess, setUploadSuccess] = useState(false)
   const [aiAnalysis, setAiAnalysis] = useState(null)   // Gemini Vision result
   const [aiChecking, setAiChecking] = useState(false)   // AI verification in progress
@@ -988,7 +1009,10 @@ export default function DefectPage() {
                 <RevealWrapper key={item.id} delay={idx * 0.05}>
                   <div
                     className="card"
-                    onClick={() => setSelectedDefect(item)}
+                    onClick={() => {
+                      setSelectedDefect(item)
+                      setShowSimulation(false)
+                    }}
                     style={{
                       padding: 0,
                       cursor: 'pointer',
@@ -1167,6 +1191,7 @@ export default function DefectPage() {
                           onClick={(e) => {
                             e.stopPropagation()
                             setSelectedDefect(item)
+                            setShowSimulation(false)
                           }}
                           className="btn btn-secondary"
                           style={{ padding: '6px 14px', fontSize: '0.75rem', borderRadius: 'var(--radius-pill)' }}
@@ -1237,7 +1262,10 @@ export default function DefectPage() {
                     return (
                       <tr
                         key={d.id}
-                        onClick={() => setSelectedDefect(d)}
+                        onClick={() => {
+                          setSelectedDefect(d)
+                          setShowSimulation(false)
+                        }}
                         style={{ borderBottom: '1px solid rgba(0,0,0,0.06)', cursor: 'pointer', transition: 'background 0.2s' }}
                         className="table-row-hover"
                       >
@@ -1287,6 +1315,7 @@ export default function DefectPage() {
                               onClick={(e) => {
                                 e.stopPropagation()
                                 setSelectedDefect(d)
+                                setShowSimulation(false)
                               }}
                             >
                               Inspect
@@ -1796,7 +1825,10 @@ export default function DefectPage() {
               justifyContent: 'center',
               padding: 'var(--space-md)'
             }}
-            onClick={() => setSelectedDefect(null)}
+            onClick={() => {
+              setSelectedDefect(null)
+              setShowSimulation(false)
+            }}
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
@@ -1837,7 +1869,10 @@ export default function DefectPage() {
                     </span>
                   </div>
                 </div>
-                <button onClick={() => setSelectedDefect(null)} className="btn-icon" style={{ border: 'none', background: 'var(--bg-secondary)' }}>
+                <button onClick={() => {
+                  setSelectedDefect(null)
+                  setShowSimulation(false)
+                }} className="btn-icon" style={{ border: 'none', background: 'var(--bg-secondary)' }}>
                   ✕
                 </button>
               </div>
@@ -1938,6 +1973,65 @@ export default function DefectPage() {
                 </p>
               </div>
 
+              {/* Simulation View */}
+              <AnimatePresence>
+                {showSimulation && (
+                   <motion.div
+                     initial={{ height: 0, opacity: 0, marginTop: 0 }}
+                     animate={{ height: 'auto', opacity: 1, marginTop: 'var(--space-lg)' }}
+                     exit={{ height: 0, opacity: 0, marginTop: 0 }}
+                     style={{ overflow: 'hidden', marginBottom: 'var(--space-xl)' }}
+                   >
+                     <div style={{ background: 'var(--bg-secondary)', padding: 'var(--space-lg)', borderRadius: '16px', border: '1px solid var(--border)' }}>
+                       <h4 style={{ fontSize: '1.1rem', fontWeight: 900, marginBottom: 'var(--space-lg)', color: 'var(--dept-conflict)' }}>
+                         Simulation: 24-Hour Unresolved Impact
+                       </h4>
+                       
+                       <div style={{ display: 'flex', gap: 'var(--space-2xl)', flexWrap: 'wrap' }}>
+                          {/* Flowchart */}
+                          <div style={{ flex: 1, minWidth: '220px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center' }}>
+                              <div style={{ width: '100%', textAlign: 'center', padding: '10px', background: 'var(--bg-primary)', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '0.85rem', fontWeight: 800 }}>CURRENT STATE</div>
+                              <div style={{ color: 'var(--text-muted)' }}>↓</div>
+                              <div style={{ width: '100%', textAlign: 'center', padding: '10px', background: 'var(--bg-primary)', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '0.85rem', fontWeight: 800 }}>Defect detected</div>
+                              <div style={{ color: 'var(--text-muted)' }}>↓</div>
+                              <div style={{ width: '100%', textAlign: 'center', padding: '10px', background: 'rgba(201, 79, 79, 0.08)', borderRadius: '8px', border: '1px solid rgba(201, 79, 79, 0.3)', fontSize: '0.85rem', fontWeight: 800, color: 'var(--dept-conflict)' }}>No action</div>
+                              <div style={{ color: 'var(--text-muted)' }}>↓</div>
+                              <div style={{ width: '100%', textAlign: 'center', padding: '10px', background: 'var(--bg-primary)', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '0.85rem', fontWeight: 800 }}>6 hours</div>
+                              <div style={{ color: 'var(--text-muted)' }}>↓</div>
+                              <div style={{ width: '100%', textAlign: 'center', padding: '10px', background: 'var(--bg-primary)', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '0.85rem', fontWeight: 800 }}>12 hours</div>
+                              <div style={{ color: 'var(--text-muted)' }}>↓</div>
+                              <div style={{ width: '100%', textAlign: 'center', padding: '10px', background: 'var(--bg-primary)', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '0.85rem', fontWeight: 800 }}>24 hours</div>
+                              <div style={{ color: 'var(--dept-conflict)' }}>↓</div>
+                              <div style={{ width: '100%', textAlign: 'center', padding: '10px', background: 'var(--dept-conflict)', borderRadius: '8px', border: '1px solid var(--dept-conflict)', fontSize: '0.85rem', fontWeight: 900, color: '#fff' }}>Risk escalation</div>
+                            </div>
+                          </div>
+
+                          {/* Impact details */}
+                          <div style={{ flex: 1, minWidth: '250px' }}>
+                             <div style={{ padding: 'var(--space-lg)', background: 'var(--bg-primary)', borderRadius: '12px', border: '1px solid var(--border)', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                               <div style={{ fontSize: '0.95rem', fontWeight: 800, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                 <AlertTriangle size={18} color="var(--dept-conflict)" />
+                                 <span>Risk increases from <span style={{ color: 'var(--text-muted)', textDecoration: 'line-through', margin: '0 4px' }}>{simulationData?.startRisk || 72}</span> → <span style={{ color: 'var(--dept-conflict)', fontSize: '1.2rem', marginLeft: '4px' }}>{simulationData?.endRisk || 86}</span></span>
+                               </div>
+                               <h5 style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '12px' }}>Possible impact:</h5>
+                               <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '0.9rem', display: 'flex', flexDirection: 'column', gap: '10px', flex: 1 }}>
+                                 <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 600 }}><span style={{ color: 'var(--dept-conflict)', fontSize: '1.2rem' }}>•</span> {simulationData?.trains || 6} trains affected</li>
+                                 <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 600 }}><span style={{ color: 'var(--dept-conflict)', fontSize: '1.2rem' }}>•</span> {simulationData?.blocks || 2} maintenance blocks required</li>
+                                 <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 600 }}><span style={{ color: 'var(--dept-conflict)', fontSize: '1.2rem' }}>•</span> {simulationData?.restriction || 18} km operational restriction</li>
+                                 <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 600 }}><span style={{ color: 'var(--dept-conflict)', fontSize: '1.2rem' }}>•</span> estimated delay: {simulationData?.delay || 47} min</li>
+                               </ul>
+                               <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 'var(--space-xl)', fontStyle: 'italic', lineHeight: 1.5 }}>
+                                 * Model-based estimate for simulation purposes only. Not a claim of predictive derailment.
+                               </p>
+                             </div>
+                          </div>
+                       </div>
+                     </div>
+                   </motion.div>
+                )}
+              </AnimatePresence>
+
               {/* Action buttons */}
               <div style={{ display: 'flex', gap: 'var(--space-md)', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
                 <button
@@ -1957,8 +2051,19 @@ export default function DefectPage() {
                   <Trash2 size={14} color="var(--dept-conflict)" />
                   <span>Delete Defect</span>
                 </button>
-                <div style={{ display: 'flex', gap: 'var(--space-md)' }}>
-                  <button onClick={() => setSelectedDefect(null)} className="btn btn-secondary">
+                <div style={{ display: 'flex', gap: 'var(--space-md)', alignItems: 'center' }}>
+                  <button
+                    onClick={() => setShowSimulation(!showSimulation)}
+                    className="btn btn-secondary"
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px', background: showSimulation ? 'rgba(201, 79, 79, 0.1)' : 'var(--bg-secondary)', color: showSimulation ? 'var(--dept-conflict)' : 'var(--text-primary)', borderColor: showSimulation ? 'var(--dept-conflict)' : 'var(--border)' }}
+                  >
+                    <Activity size={14} />
+                    <span>{showSimulation ? 'HIDE SIMULATION' : 'SIMULATE'}</span>
+                  </button>
+                  <button onClick={() => {
+                    setSelectedDefect(null)
+                    setShowSimulation(false)
+                  }} className="btn btn-secondary">
                     Close
                   </button>
                   <button

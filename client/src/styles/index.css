@@ -12,9 +12,9 @@
   --bg-secondary: #f5f0eb;
   --bg-tertiary: #ece5dd;
   --bg-card: #ffffff;
-  --accent: #e4a4bd;
-  --accent-hover: #d48da8;
-  --accent-light: rgba(228, 164, 189, 0.15);
+  --accent: #C2185B;
+  --accent-hover: #AD1457;
+  --accent-light: rgba(194, 24, 91, 0.15);
   --text-primary: #262626;
   --text-secondary: rgba(38, 38, 38, 0.72);
   --text-muted: rgba(38, 38, 38, 0.44);
@@ -23,7 +23,7 @@
   --border-strong: rgba(38, 38, 38, 0.16);
 
   /* Department Colors */
-  --dept-engg: #e4a4bd;
+  --dept-engg: #C2185B;
   --dept-snt: #7ec4cf;
   --dept-trd: #d4a057;
   --dept-multi: #4a4a4a;
