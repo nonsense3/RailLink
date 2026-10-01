@@ -2,9 +2,7 @@ import { supabase } from '../lib/supabase.js'
 
 async function createAdminUsers() {
   const usersToCreate = [
-    { email: 'dasouvik122005@gmail.com', password: 'password123', name: 'Souvik Das' },
-    { email: 'ankitdey061@gmail.com', password: 'password123', name: 'Ankit Dey' },
-    { email: 'catch2sanchari@gmail.com', password: 'password123', name: 'Sanchari' },
+    { email: 'reach2sanchari@gmail.com', password: 'password123', name: 'Sanchari', role: 'employee' }
   ]
 
   for (const u of usersToCreate) {
@@ -14,7 +12,7 @@ async function createAdminUsers() {
       email_confirm: true,
       user_metadata: {
         name: u.name,
-        role: 'admin' // Even though auth.js enforces it, good to have here
+        role: u.role
       }
     })
 
