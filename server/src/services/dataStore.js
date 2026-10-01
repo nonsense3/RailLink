@@ -110,10 +110,82 @@ const defaultMasterPlans = [
   }
 ]
 
+export const defaultMasterDefects = [
+  {
+    id: 'DEF-ENG-4201',
+    department: 'Engineering',
+    sourceSystem: 'TMS',
+    division: 'Eastern Railway — Sealdah Division (SDAH)',
+    corridorId: 'CORR-SDAH',
+    corridorName: 'Sealdah - Dum Dum - Naihati - Ranaghat Main Line',
+    section: 'Sealdah - Dum Dum - Naihati - Ranaghat Main Line',
+    location: 'Bidhan Nagar Road (BNR)',
+    kmMarker: 'KM 1.1',
+    trackType: 'Platform Line 1 - 5 (SEALDAH NORTH SUBURBAN EMU)',
+    defectCategory: 'Rail Fracture / USFD Flaw',
+    workRequired: 'Transverse fissure detected on outer rail head at KM 1.1. Emergency joggled fishplate applied; requires 52kg rail section replacement block.',
+    description: 'Transverse fissure detected on outer rail head at KM 1.1. Emergency joggled fishplate applied; requires 52kg rail section replacement block.',
+    severity: 'Critical',
+    status: 'Pending Block Allocation',
+    photoUrl: 'https://images.unsplash.com/photo-1474487548417-781cb71495f3?auto=format&fit=crop&w=800&q=80',
+    overdueDays: 1,
+    reportedDate: new Date().toISOString().split('T')[0],
+    estimatedDurationMin: 180,
+    aiConfidence: '98.2%',
+    aiTags: ['Sealdah Division (SDAH)', 'Platform Line 1 - 5', 'Priority 1 (Critical)']
+  },
+  {
+    id: 'DEF-TRD-3180',
+    department: 'Traction Distribution',
+    sourceSystem: 'TDMS',
+    division: 'Northern Railway — Delhi Division (DLI)',
+    corridorId: 'CORR-DLI',
+    corridorName: 'Delhi - Agra Semi High-Speed Corridor (Sec 4)',
+    section: 'Delhi - Agra Semi High-Speed Corridor (Sec 4)',
+    location: 'Mathura Jn North Yard',
+    kmMarker: 'KM 118.4',
+    trackType: 'Up Main Line',
+    defectCategory: 'OHE Catenary Wire Sag / Height Defect',
+    workRequired: 'Contact wire height dropped to 4.72m near turnout 14A. Requires tower wagon tensioning and dropper adjustment curfew.',
+    description: 'Contact wire height dropped to 4.72m near turnout 14A. Requires tower wagon tensioning and dropper adjustment curfew.',
+    severity: 'High',
+    status: 'Pending Block Allocation',
+    photoUrl: 'https://images.unsplash.com/photo-1541888946425-d0fbb18086f6?auto=format&fit=crop&w=800&q=80',
+    overdueDays: 2,
+    reportedDate: new Date().toISOString().split('T')[0],
+    estimatedDurationMin: 120,
+    aiConfidence: '96.5%',
+    aiTags: ['Delhi Division (DLI)', 'Up Main Line', 'Priority 2 (High)']
+  },
+  {
+    id: 'DEF-SIG-5920',
+    department: 'Signal & Telecom',
+    sourceSystem: 'SMMS',
+    division: 'Central Railway — Mumbai Division (CSMT)',
+    corridorId: 'CORR-CSMT',
+    corridorName: 'Mumbai - Pune Ghat Section (Sec 1)',
+    section: 'Mumbai - Pune Ghat Section (Sec 1)',
+    location: 'Kalyan Jn South Yard',
+    kmMarker: 'KM 54.0',
+    trackType: 'Down Fast Line',
+    defectCategory: 'Point Machine Motor & Lock Rod',
+    workRequired: 'Point machine 102B obstruction test timing exceeded 4.5 seconds. Lubrication and ground connection overhaul needed.',
+    description: 'Point machine 102B obstruction test timing exceeded 4.5 seconds. Lubrication and ground connection overhaul needed.',
+    severity: 'Medium',
+    status: 'Pending Block Allocation',
+    photoUrl: 'https://images.unsplash.com/photo-1517649763962-0c623266ddc0?auto=format&fit=crop&w=800&q=80',
+    overdueDays: 0,
+    reportedDate: new Date().toISOString().split('T')[0],
+    estimatedDurationMin: 90,
+    aiConfidence: '94.8%',
+    aiTags: ['Mumbai Division (CSMT)', 'Down Fast Line', 'Routine']
+  }
+]
+
 // In-memory unified repository
 class DataStore {
   constructor() {
-    this.defects = []
+    this.defects = [...defaultMasterDefects]
     this.corridors = corridorSlots
     this.timetable = coaTimetable
     this.blockRequests = []

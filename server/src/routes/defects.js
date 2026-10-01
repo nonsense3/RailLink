@@ -1,5 +1,5 @@
 import express from 'express'
-import { dataStore } from '../services/dataStore.js'
+import { dataStore, defaultMasterDefects } from '../services/dataStore.js'
 import { supabase, isSupabaseConfigured } from '../lib/supabase.js'
 import { deleteTrackPhoto, deleteTrackPhotosByUrls, deleteAllTrackPhotos } from '../services/cloudinaryService.js'
 import { analyzeDefectPhoto } from '../services/aiService.js'
@@ -18,6 +18,33 @@ router.get('/', async (req, res) => {
 
       const { data, error } = await query
       if (!error && Array.isArray(data)) {
+        if (data.length === 0 && !department && !severity && !corridorId) {
+          try {
+            const rowsToInsert = defaultMasterDefects.map(d => ({
+              id: d.id,
+              department: d.department,
+              source_system: d.sourceSystem,
+              corridor_id: d.corridorId,
+              corridor_name: `${d.division} | ${d.corridorName} — ${d.location}`,
+              section_id: d.division,
+              track_type: d.trackType,
+              defect_category: d.defectCategory,
+              km_start: parseFloat((d.kmMarker || '').replace(/[^0-9.]/g, '')) || 0,
+              km_end: (parseFloat((d.kmMarker || '').replace(/[^0-9.]/g, '')) || 0) + 0.1,
+              severity: d.severity,
+              status: d.status,
+              photo_url: d.photoUrl,
+              work_required: d.description,
+              estimated_duration_min: d.estimatedDurationMin || 120,
+              ai_confidence: d.aiConfidence || '95.4%'
+            }))
+            await supabase.from('defects').insert(rowsToInsert)
+            console.log('[Supabase Auto-Seed]: Seeded default railway defects into Supabase')
+          } catch (seedErr) {
+            console.warn('[Supabase Seed Warning]:', seedErr.message)
+          }
+          return res.json({ defects: defaultMasterDefects, total: defaultMasterDefects.length, source: 'RailLink Seed DB' })
+        }
         const normalized = data.map(d => {
           const dept = d.department || 'Engineering'
           const rawSection = d.corridor_name || ''

@@ -494,8 +494,7 @@ export default function DefectPage() {
       }
 
       // STEP 2: AI VERIFICATION — Analyze uploaded photo before saving
-      // Only run if we have a real URL (not base64 fallback)
-      if (finalPhotoUrl && finalPhotoUrl.startsWith('http')) {
+      if (finalPhotoUrl) {
         setAiChecking(true)
         try {
           const analyzeRes = await api.post('/upload/analyze', { photoUrl: finalPhotoUrl })
@@ -512,7 +511,13 @@ export default function DefectPage() {
           }
         } catch (analyzeErr) {
           setAiChecking(false)
-          // AI endpoint failed — log but don't block (fail open)
+          if (analyzeErr?.isRailwayDefect === false) {
+            setIsUploading(false)
+            setPhotoError(
+              `⚠️ AI Verification Failed: ${analyzeErr.rejectionReason || 'This image does not appear to show a railway defect.'}\n\nPlease upload an actual photo of a track, signal, or OHE infrastructure defect.`
+            )
+            return
+          }
           console.warn('[AI Analyze Warning]: Proceeding without verification:', analyzeErr?.message)
         }
       }
