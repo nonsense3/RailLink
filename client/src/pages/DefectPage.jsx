@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import RevealWrapper from '../components/layout/RevealWrapper'
+import { useAuthStore } from '../store'
 import api, { wakeUpServer } from '../lib/api'
 import { supabase } from '../lib/supabase'
 import { getConfig, fetchServerConfig } from '../lib/config'
@@ -33,7 +34,8 @@ import {
   Zap,
   Trash2,
   Shield,
-  ArrowRight
+  ArrowRight,
+  Lock
 } from 'lucide-react'
 
 export const INDIAN_RAILWAY_DIVISIONS = [
@@ -106,6 +108,7 @@ export const TRACK_LINES = [
 
 export default function DefectPage() {
   const navigate = useNavigate()
+  const { user } = useAuthStore()
   const [defects, setDefects] = useState([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -240,6 +243,25 @@ export default function DefectPage() {
 
         const locationName = d.location || (displaySection.includes('—') ? displaySection.split('—')[1]?.trim() : displaySection)
 
+        // Parse scheduled time and crew if present (from workRequired / work_required or direct fields)
+        const rawWork = d.workRequired || d.work_required || d.description || ''
+        let scheduledDate = d.scheduledDate || null
+        let scheduledTime = d.scheduledTime || null
+        let allocatedCrew = d.allocatedCrew || null
+        let supervisor = d.supervisor || null
+
+        if (rawWork && rawWork.startsWith('[Scheduled:')) {
+          const match = rawWork.match(/^\[Scheduled:\s*([^|]+)\|\s*Crew:\s*([^|]+)\|\s*Lead:\s*([^\]]+)\]\s*(.*)$/s)
+          if (match) {
+            const schedPart = match[1].trim()
+            const schedSplit = schedPart.split(' ')
+            if (!scheduledDate) scheduledDate = schedSplit[0]
+            if (!scheduledTime) scheduledTime = schedSplit.slice(1).join(' ')
+            if (!allocatedCrew) allocatedCrew = match[2].trim()
+            if (!supervisor) supervisor = match[3].trim()
+          }
+        }
+
         return {
           id: d.id,
           division: division,
@@ -257,6 +279,10 @@ export default function DefectPage() {
           dueDate: d.dueDate || '2026-09-16',
           overdueDays: d.overdue_days || d.overdueDays || 0,
           photoUrl: d.photo_url || d.photoUrl || defaultPhoto,
+          scheduledDate,
+          scheduledTime,
+          allocatedCrew,
+          supervisor,
           aiTags: d.aiTags || [
             division.split('—')[1]?.trim() || division,
             d.track_type || 'Up Main Line',
@@ -264,7 +290,7 @@ export default function DefectPage() {
             d.severity === 'Critical' ? 'Priority 1 (Critical)' : d.severity === 'High' ? 'Priority 2 (High)' : 'Routine'
           ],
           aiConfidence: d.ai_confidence || d.aiConfidence || '97.4%',
-          description: d.workRequired || d.work_required || d.description || 'Field defect recorded for corridor block planning.'
+          description: rawWork.replace(/^\[Scheduled:[^\]]+\]\s*/, '') || 'Field defect recorded for corridor block planning.'
         }
       })
 
@@ -723,7 +749,7 @@ export default function DefectPage() {
               <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
               <span>{refreshing ? 'Syncing...' : 'Sync DB'}</span>
             </button>
-            {defects.length > 0 && (
+            {user?.role === 'admin' && defects.length > 0 && (
               <button
                 onClick={handleClearAllDefects}
                 className="btn btn-secondary"
@@ -736,7 +762,7 @@ export default function DefectPage() {
                   color: 'var(--dept-conflict)',
                   borderColor: 'rgba(201, 79, 79, 0.4)'
                 }}
-                title="Permanently wipe all defects from Supabase"
+                title="Permanently wipe all defects from Supabase (Admin Only)"
               >
                 <Trash2 size={16} color="var(--dept-conflict)" />
                 <span>Clear All</span>
@@ -748,11 +774,60 @@ export default function DefectPage() {
               style={{ padding: '14px 24px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.875rem' }}
             >
               <Camera size={18} />
-              UPLOAD INSPECTION PHOTO
+              {user ? 'UPLOAD INSPECTION PHOTO' : 'SUBMIT DEFECT REPORT'}
             </button>
           </div>
         </div>
       </RevealWrapper>
+
+      {/* Public Guest Awareness Banner */}
+      {!user && (
+        <RevealWrapper delay={0.05}>
+          <div style={{
+            background: 'rgba(228, 164, 189, 0.08)',
+            border: '1px solid rgba(228, 164, 189, 0.3)',
+            borderRadius: 'var(--radius-card)',
+            padding: 'var(--space-md) var(--space-lg)',
+            marginBottom: 'var(--space-xl)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 'var(--space-md)',
+            flexWrap: 'wrap'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{
+                width: '38px',
+                height: '38px',
+                borderRadius: '50%',
+                background: 'rgba(228, 164, 189, 0.2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--accent)'
+              }}>
+                <Shield size={20} />
+              </div>
+              <div>
+                <p style={{ fontWeight: 800, fontSize: '0.92rem', margin: 0, color: 'var(--text-primary)' }}>
+                  Public Railway Safety & Defect Feed
+                </p>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>
+                  Viewing verified and admin-approved track issues, corridor curfews, and maintenance block allocations. Railway workers must sign in to submit defect photos or run Ollama Gemma 4 vision diagnostics.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => navigate('/login')}
+              className="btn btn-primary"
+              style={{ padding: '8px 18px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              <Lock size={14} />
+              Worker Login
+            </button>
+          </div>
+        </RevealWrapper>
+      )}
 
       {/* Control Bar: Tabs & Search Filters */}
       <RevealWrapper delay={0.1}>
@@ -1135,6 +1210,34 @@ export default function DefectPage() {
                         ))}
                       </div>
 
+                      {/* Scheduled Block & Crew info if allocated */}
+                      {(item.scheduledDate || item.allocatedCrew) && (
+                        <div style={{
+                          background: 'rgba(228, 164, 189, 0.1)',
+                          border: '1px solid rgba(228, 164, 189, 0.35)',
+                          borderRadius: '8px',
+                          padding: '8px 10px',
+                          marginBottom: 'var(--space-md)',
+                          fontSize: '0.75rem',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '3px'
+                        }}>
+                          {item.scheduledDate && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: 'var(--accent)', fontWeight: 800 }}>
+                              <Clock size={12} />
+                              <span>Block: {item.scheduledDate} {item.scheduledTime ? `(${item.scheduledTime})` : ''}</span>
+                            </div>
+                          )}
+                          {item.allocatedCrew && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: 'var(--text-primary)', fontWeight: 600 }}>
+                              <Wrench size={12} color="var(--accent)" />
+                              <span>Crew: {item.allocatedCrew} {item.supervisor ? `• ${item.supervisor}` : ''}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       <p style={{
                         fontSize: '0.8rem',
                         lineHeight: 1.5,
@@ -1167,25 +1270,27 @@ export default function DefectPage() {
                         >
                           Inspect Details
                         </button>
-                        <button
-                          type="button"
-                          onClick={(e) => handleDeleteDefect(item.id, e)}
-                          className="btn btn-secondary"
-                          style={{
-                            padding: '6px 12px',
-                            fontSize: '0.75rem',
-                            borderRadius: 'var(--radius-pill)',
-                            color: 'var(--dept-conflict)',
-                            borderColor: 'rgba(201, 79, 79, 0.35)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px'
-                          }}
-                          title="Permanently delete this defect from Supabase"
-                        >
-                          <Trash2 size={13} color="var(--dept-conflict)" />
-                          <span>Delete</span>
-                        </button>
+                        {user?.role === 'admin' && (
+                          <button
+                            type="button"
+                            onClick={(e) => handleDeleteDefect(item.id, e)}
+                            className="btn btn-secondary"
+                            style={{
+                              padding: '6px 12px',
+                              fontSize: '0.75rem',
+                              borderRadius: 'var(--radius-pill)',
+                              color: 'var(--dept-conflict)',
+                              borderColor: 'rgba(201, 79, 79, 0.35)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                            title="Permanently delete this defect from Supabase (Admin Only)"
+                          >
+                            <Trash2 size={13} color="var(--dept-conflict)" />
+                            <span>Delete</span>
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1272,7 +1377,19 @@ export default function DefectPage() {
                             {d.severity}
                           </span>
                         </td>
-                        <td style={{ padding: '16px 8px', fontSize: '0.85rem', fontWeight: 600 }}>{d.status}</td>
+                        <td style={{ padding: '16px 8px', fontSize: '0.85rem' }}>
+                          <div style={{ fontWeight: 600 }}>{d.status}</div>
+                          {d.scheduledDate && (
+                            <div style={{ fontSize: '0.72rem', color: 'var(--accent)', fontWeight: 700, marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <Clock size={11} /> {d.scheduledDate} {d.scheduledTime ? `(${d.scheduledTime})` : ''}
+                            </div>
+                          )}
+                          {d.allocatedCrew && (
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '1px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <Wrench size={10} color="var(--accent)" /> {d.allocatedCrew}
+                            </div>
+                          )}
+                        </td>
                         <td style={{ padding: '16px 8px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <button
@@ -1285,20 +1402,22 @@ export default function DefectPage() {
                             >
                               Inspect
                             </button>
-                            <button
-                              className="btn btn-secondary"
-                              style={{
-                                padding: '6px 10px',
-                                fontSize: '0.75rem',
-                                borderRadius: 'var(--radius-pill)',
-                                color: 'var(--dept-conflict)',
-                                borderColor: 'rgba(201, 79, 79, 0.3)'
-                              }}
-                              onClick={(e) => handleDeleteDefect(d.id, e)}
-                              title="Delete defect"
-                            >
-                              <Trash2 size={13} color="var(--dept-conflict)" />
-                            </button>
+                            {user?.role === 'admin' && (
+                              <button
+                                className="btn btn-secondary"
+                                style={{
+                                  padding: '6px 10px',
+                                  fontSize: '0.75rem',
+                                  borderRadius: 'var(--radius-pill)',
+                                  color: 'var(--dept-conflict)',
+                                  borderColor: 'rgba(201, 79, 79, 0.3)'
+                                }}
+                                onClick={(e) => handleDeleteDefect(d.id, e)}
+                                title="Permanently delete this defect from Supabase (Admin Only)"
+                              >
+                                <Trash2 size={13} color="var(--dept-conflict)" />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -1325,7 +1444,55 @@ export default function DefectPage() {
               </div>
             </div>
 
-            {uploadSuccess ? (
+            {!user ? (
+              <div style={{
+                padding: 'var(--space-3xl) var(--space-xl)',
+                background: 'var(--bg-secondary)',
+                borderRadius: 'var(--radius-card)',
+                border: '1px dashed var(--border)',
+                textAlign: 'center',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 'var(--space-md)'
+              }}>
+                <div style={{
+                  width: '64px',
+                  height: '64px',
+                  borderRadius: '50%',
+                  background: 'rgba(228, 164, 189, 0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--accent)'
+                }}>
+                  <Lock size={32} />
+                </div>
+                <h4 style={{ fontSize: '1.4rem', fontWeight: 900, margin: 0 }}>
+                  Railway Worker Authentication Required
+                </h4>
+                <p style={{ fontSize: '0.92rem', color: 'var(--text-muted)', maxWidth: '540px', margin: '0 auto', lineHeight: 1.6 }}>
+                  Submitting defect inspections and running Ollama Gemma 4 vision diagnostics is restricted to authenticated railway staff and section engineers. Please sign in with your worker credentials to upload photos and record defects.
+                </p>
+                <div style={{ display: 'flex', gap: 'var(--space-md)', marginTop: 'var(--space-sm)' }}>
+                  <button
+                    onClick={() => navigate('/login')}
+                    className="btn btn-primary"
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 24px' }}
+                  >
+                    <Lock size={16} />
+                    Sign In to Submit Report
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('gallery')}
+                    className="btn btn-secondary"
+                    style={{ padding: '12px 20px' }}
+                  >
+                    Browse Public Defects
+                  </button>
+                </div>
+              </div>
+            ) : uploadSuccess ? (
               <div style={{
                 padding: 'var(--space-2xl)',
                 background: 'var(--bg-secondary)',
@@ -2066,6 +2233,40 @@ export default function DefectPage() {
                 </div>
               </div>
 
+              {/* Scheduled Corridor Block & Worker Allocation Details */}
+              {(selectedDefect.scheduledDate || selectedDefect.allocatedCrew) && (
+                <div style={{
+                  background: 'rgba(228, 164, 189, 0.12)',
+                  border: '1px solid rgba(228, 164, 189, 0.35)',
+                  borderRadius: '16px',
+                  padding: '16px',
+                  marginBottom: 'var(--space-lg)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--accent)', fontWeight: 800, fontSize: '0.9rem', marginBottom: '10px' }}>
+                    <Clock size={16} />
+                    <span>Corridor Curfew Block & Maintenance Gang Allocation</span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px' }}>
+                    <div style={{ background: 'var(--bg-primary)', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, display: 'block' }}>SCHEDULED DATE</span>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)' }}>{selectedDefect.scheduledDate || 'Pending Allocation'}</span>
+                    </div>
+                    <div style={{ background: 'var(--bg-primary)', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, display: 'block' }}>CURFEW TIME SLOT</span>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)' }}>{selectedDefect.scheduledTime || 'Night Traffic Curfew'}</span>
+                    </div>
+                    <div style={{ background: 'var(--bg-primary)', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, display: 'block' }}>ASSIGNED CREW / GANG</span>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)' }}>{selectedDefect.allocatedCrew || 'Unassigned'}</span>
+                    </div>
+                    <div style={{ background: 'var(--bg-primary)', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, display: 'block' }}>SUPERVISOR / LEAD</span>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)' }}>{selectedDefect.supervisor || 'SSE In-Charge'}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Description */}
               <div style={{ marginBottom: 'var(--space-xl)' }}>
                 <h4 style={{ fontSize: '0.85rem', fontWeight: 800, marginBottom: '6px' }}>Field Inspection Report</h4>
@@ -2076,40 +2277,50 @@ export default function DefectPage() {
 
               {/* Action buttons */}
               <div style={{ display: 'flex', gap: 'var(--space-md)', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
-                <button
-                  type="button"
-                  onClick={() => handleDeleteDefect(selectedDefect.id)}
-                  className="btn btn-secondary"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    color: 'var(--dept-conflict)',
-                    borderColor: 'rgba(201, 79, 79, 0.4)',
-                    marginRight: 'auto'
-                  }}
-                  title="Permanently remove this defect from Supabase"
-                >
-                  <Trash2 size={14} color="var(--dept-conflict)" />
-                  <span>Delete Defect</span>
-                </button>
+                {user?.role === 'admin' ? (
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteDefect(selectedDefect.id)}
+                    className="btn btn-secondary"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      color: 'var(--dept-conflict)',
+                      borderColor: 'rgba(201, 79, 79, 0.4)',
+                      marginRight: 'auto'
+                    }}
+                    title="Permanently remove this defect from Supabase (Admin Only)"
+                  >
+                    <Trash2 size={14} color="var(--dept-conflict)" />
+                    <span>Delete Defect</span>
+                  </button>
+                ) : (
+                  <div style={{ marginRight: 'auto' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      <Shield size={12} color="var(--status-healthy)" /> Indian Railways Verified Safety Record
+                    </span>
+                  </div>
+                )}
                 <div style={{ display: 'flex', gap: 'var(--space-md)' }}>
                   <button onClick={() => setSelectedDefect(null)} className="btn btn-secondary">
                     Close
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const defectId = selectedDefect.id
-                      setSelectedDefect(null)
-                      navigate(`/plans?scheduleDefect=${defectId}`)
-                    }}
-                    className="btn btn-primary"
-                    style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-                  >
-                    <Zap size={14} />
-                    <span>Schedule Priority Block</span>
-                  </button>
+                  {user?.role === 'admin' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const defectId = selectedDefect.id
+                        setSelectedDefect(null)
+                        navigate(`/admin?tab=allocations&defectId=${defectId}`)
+                      }}
+                      className="btn btn-primary"
+                      style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                    >
+                      <Zap size={14} />
+                      <span>Manage Block & Crew Allocation</span>
+                    </button>
+                  )}
                 </div>
               </div>
             </motion.div>

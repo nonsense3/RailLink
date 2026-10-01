@@ -70,7 +70,23 @@ router.get('/', async (req, res) => {
             ? displaySection.split('—')[1]?.trim()
             : (displaySection.includes('-') ? displaySection.split('-').pop()?.trim() : displaySection)
 
-          const desc = d.work_required || d.defect_category || 'Field defect reported for block planning.'
+          const rawDesc = d.work_required || d.defect_category || 'Field defect reported for block planning.'
+
+          let scheduledDate = d.scheduled_date || d.scheduledDate || null
+          let scheduledTime = d.scheduled_time || d.scheduledTime || null
+          let allocatedCrew = d.allocated_crew || d.allocatedCrew || null
+          let supervisor = d.supervisor || null
+          let cleanDesc = rawDesc
+
+          // Parse structured schedule tag if present in work_required: [Scheduled: 2026-10-05 01:30 - 04:30 | Crew: Track Gang #04 | Lead: SSE R.K. Meena]
+          const schedMatch = rawDesc.match(/^\[Scheduled:\s*([^\s|]+)\s+([^|]+)\s*\|\s*Crew:\s*([^|]+)\s*\|\s*Lead:\s*([^\]]+)\]\s*(.*)$/i)
+          if (schedMatch) {
+            scheduledDate = schedMatch[1].trim()
+            scheduledTime = schedMatch[2].trim()
+            allocatedCrew = schedMatch[3].trim()
+            supervisor = schedMatch[4].trim()
+            cleanDesc = schedMatch[5].trim() || rawDesc
+          }
 
           return {
             id: d.id,
@@ -92,11 +108,15 @@ router.get('/', async (req, res) => {
             track_type: d.track_type || 'Up Main Line',
             defectCategory: d.defect_category || 'Track Infrastructure',
             defect_category: d.defect_category || 'Track Infrastructure',
-            workRequired: desc,
-            work_required: desc,
-            description: desc,
+            workRequired: cleanDesc,
+            work_required: rawDesc,
+            description: cleanDesc,
             severity: d.severity || 'Medium',
             status: d.status || 'Pending Block',
+            scheduledDate,
+            scheduledTime,
+            allocatedCrew,
+            supervisor,
             photoUrl: d.photo_url || '',
             photo_url: d.photo_url || '',
             overdueDays: d.overdue_days || 0,
@@ -299,6 +319,136 @@ router.patch('/:id/approve', async (req, res) => {
     }
 
     res.json({ success: true, message: `Defect ${id} approved and published`, status: targetStatus })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Allocate Block Plan, Time Window & Worker Crew for a specific defect
+router.patch('/:id/allocate', async (req, res) => {
+  try {
+    const { id } = req.params
+    const {
+      date,
+      startTime,
+      endTime,
+      duration,
+      allocatedCrew,
+      supervisor,
+      blockType,
+      machinery,
+      notes
+    } = req.body
+
+    const targetDate = date || new Date(Date.now() + 86400000).toISOString().split('T')[0]
+    const timeWindow = `${startTime || '01:30'} - ${endTime || '04:30'}`
+    const crewName = allocatedCrew || 'Track Maintenance Gang #04 (12 Maintainers)'
+    const leadName = supervisor || 'SSE/P-Way R.K. Meena'
+    const blockDuration = duration || '3h 00m'
+    const curfewType = blockType || 'Defect-Driven Remedial Curfew'
+
+    // 1. Update in-memory dataStore
+    let defect = dataStore.defects.find(d => d.id === id)
+    if (!defect) {
+      defect = { id, description: notes || 'Field defect remediation' }
+      dataStore.defects.unshift(defect)
+    }
+
+    defect.status = 'Block Scheduled'
+    defect.scheduledDate = targetDate
+    defect.scheduledTime = timeWindow
+    defect.allocatedCrew = crewName
+    defect.supervisor = leadName
+    defect.duration = blockDuration
+    defect.blockType = curfewType
+    defect.machinery = machinery || ''
+
+    // 2. Prepare structured work_required string to persist in Supabase without schema alteration
+    const originalDesc = defect.description || defect.workRequired || 'Field defect remediation'
+    const structuredWork = `[Scheduled: ${targetDate} ${timeWindow} | Crew: ${crewName} | Lead: ${leadName}] ${notes ? notes + ' — ' : ''}${originalDesc}`
+
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        await supabase
+          .from('defects')
+          .update({
+            status: 'Block Scheduled',
+            work_required: structuredWork
+          })
+          .eq('id', id)
+      } catch (sbErr) {
+        console.warn('[Supabase Defect Allocation Warning]:', sbErr.message)
+      }
+
+      // 3. Create a linked block plan in Supabase block_plans table
+      try {
+        const planId = `BP-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`
+        const corridorName = defect.corridorName || defect.corridor_name || 'Delhi - Agra Semi High-Speed Corridor'
+        const trackType = defect.trackType || defect.track_type || 'Up Main Line'
+        const dept = defect.department || 'Engineering'
+
+        const newBlockPlan = {
+          id: planId,
+          title: `Curfew: ${defect.assetType || defect.defect_category || 'Track Remediation'} (${id})`,
+          corridor_id: defect.corridorId || defect.corridor_id || 'CORR-GEN',
+          corridor: corridorName,
+          track: trackType,
+          start_time: startTime || '01:30',
+          end_time: endTime || '04:30',
+          duration: blockDuration,
+          departments: [dept],
+          efficiency_score: '98.5%',
+          coordination_index: `Assigned: ${crewName} (${leadName})`,
+          ai_optimized: true,
+          status: 'Scheduled',
+          trains_impacted: 0,
+          type: curfewType,
+          description: `Defect ${id} at ${defect.location || corridorName}. Crew: ${crewName}, In-charge: ${leadName}. ${notes || ''}`
+        }
+
+        await supabase.from('block_plans').insert([newBlockPlan])
+
+        // Add to in-memory blockPlans as well
+        dataStore.blockPlans.unshift({
+          id: newBlockPlan.id,
+          title: newBlockPlan.title,
+          corridorId: newBlockPlan.corridor_id,
+          corridor: newBlockPlan.corridor,
+          track: newBlockPlan.track,
+          date: targetDate,
+          startTime: newBlockPlan.start_time,
+          endTime: newBlockPlan.end_time,
+          duration: newBlockPlan.duration,
+          departments: newBlockPlan.departments,
+          status: 'Scheduled',
+          type: newBlockPlan.type,
+          priority: 'High',
+          efficiencyScore: '98.5%',
+          coordinationIndex: newBlockPlan.coordination_index,
+          trainsImpacted: 0,
+          freightDiverted: 0,
+          aiOptimized: true,
+          description: newBlockPlan.description
+        })
+      } catch (planErr) {
+        console.warn('[Supabase Plan Auto-Creation Warning]:', planErr.message)
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Block plan & worker allocation confirmed for ${id}`,
+      defect: {
+        id,
+        status: 'Block Scheduled',
+        scheduledDate: targetDate,
+        scheduledTime: timeWindow,
+        allocatedCrew: crewName,
+        supervisor: leadName,
+        duration: blockDuration,
+        blockType: curfewType
+      }
+    })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }

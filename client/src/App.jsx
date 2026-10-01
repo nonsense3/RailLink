@@ -14,7 +14,7 @@ import AdminPage from './pages/AdminPage'
 import LoginPage from './pages/LoginPage'
 import HomePage from './pages/HomePage'
 
-// Protected Route component
+// App Shell Layout (supports public defect viewing and protected worker routes)
 function ProtectedLayout() {
   const { user, loading } = useAuthStore()
   const { sidebarCollapsed, mobileSidebarOpen, closeMobileSidebar } = useAppStore()
@@ -27,7 +27,11 @@ function ProtectedLayout() {
       </div>
     )
   }
-  if (!user) {
+
+  // Publicly visible pages without login (Approved defects explorer)
+  const isPublicPath = location.pathname === '/defects'
+
+  if (!user && !isPublicPath) {
     return <Navigate to="/login" state={{ from: location }} replace />
   }
 
@@ -55,19 +59,32 @@ function ProtectedLayout() {
         >
           <div style={{ flex: 1 }}>
             <Routes>
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/map" element={<MapPage />} />
-              <Route path="/plans" element={<BlockPlanPage />} />
+              {/* Publicly visible without login */}
               <Route path="/defects" element={<DefectPage />} />
-              <Route path="/analytics" element={<AnalyticsPage />} />
+
+              {/* Worker & Employee Authenticated Routes */}
+              {user ? (
+                <>
+                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                  <Route path="/dashboard" element={<DashboardPage />} />
+                  <Route path="/map" element={<MapPage />} />
+                  <Route path="/analytics" element={<AnalyticsPage />} />
+                </>
+              ) : (
+                <Route path="/" element={<Navigate to="/defects" replace />} />
+              )}
+
+              {/* Admin Exclusive: Block plans, AI Studio, and System Admin Panel */}
               {user?.role === 'admin' && (
                 <>
+                  <Route path="/plans" element={<BlockPlanPage />} />
                   <Route path="/ai-studio" element={<AIStudioPage />} />
                   <Route path="/admin" element={<AdminPage />} />
                 </>
               )}
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+
+              {/* Fallback navigation */}
+              <Route path="*" element={<Navigate to={user ? "/dashboard" : "/defects"} replace />} />
             </Routes>
           </div>
           <Footer />

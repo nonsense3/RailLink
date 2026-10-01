@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import RevealWrapper from '../components/layout/RevealWrapper'
 import { useAuthStore } from '../store'
@@ -38,12 +39,17 @@ import {
   Train,
   Tag,
   Search,
-  ArrowRight
+  ArrowRight,
+  Wrench,
+  Calendar
 } from 'lucide-react'
 
 export default function AdminPage() {
   const { user } = useAuthStore()
-  const [activeTab, setActiveTab] = useState('overview') // 'overview' | 'approvals' | 'users' | 'permissions' | 'settings'
+  const [searchParams] = useSearchParams()
+  const initialTab = searchParams.get('tab') || 'overview'
+  const [activeTab, setActiveTab] = useState(initialTab)
+  const initialDefectId = searchParams.get('defectId')
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [usersList, setUsersList] = useState([])
@@ -62,6 +68,25 @@ export default function AdminPage() {
   const [approvalMessage, setApprovalMessage] = useState(null)
   const [previewPhoto, setPreviewPhoto] = useState(null)
   const [batchProcessing, setBatchProcessing] = useState(false)
+
+  // Approved Defects & Block/Crew Allocation States
+  const [approvedDefects, setApprovedDefects] = useState([])
+  const [allocFilter, setAllocFilter] = useState('ALL') // 'ALL' | 'PENDING' | 'SCHEDULED'
+  const [allocSearch, setAllocSearch] = useState('')
+  const [allocatingDefect, setAllocatingDefect] = useState(null)
+  const [savingAllocation, setSavingAllocation] = useState(false)
+  const [allocationMsg, setAllocationMsg] = useState(null)
+
+  // Allocation Form Fields
+  const [allocDate, setAllocDate] = useState('2026-10-02')
+  const [allocStartTime, setAllocStartTime] = useState('01:30')
+  const [allocEndTime, setAllocEndTime] = useState('04:30')
+  const [allocDuration, setAllocDuration] = useState('3h 00m')
+  const [allocBlockType, setAllocBlockType] = useState('Night Shadow Curfew (01:30 - 04:30)')
+  const [allocCrew, setAllocCrew] = useState('Track Gang #04 (PW Heavy Section)')
+  const [allocSupervisor, setAllocSupervisor] = useState('R.K. Sharma (SSE/PW)')
+  const [allocWorkersCount, setAllocWorkersCount] = useState(8)
+  const [allocMachinery, setAllocMachinery] = useState('Plasser Tamper DUOMATIC & Rail Drill')
 
   // Settings & AI State
   const [aiStatus, setAiStatus] = useState(null)
@@ -138,17 +163,80 @@ export default function AdminPage() {
         setStats(prev => ({ ...prev, totalUsers: fallback.length, activeUsers: fallback.length }))
       }
 
-      // Load defects count (publicly visible defects)
+      // Load approved / published defects for Block & Crew Allocation
       try {
-        const dRes = await api.get('/defects')
-        if (dRes && Array.isArray(dRes.defects)) {
-          setStats(prev => ({ ...prev, totalDefects: dRes.defects.length }))
-        }
-      } catch {
+        let appList = []
         try {
-          const { count } = await supabase.from('defects').select('*', { count: 'exact', head: true }).neq('status', 'Pending Approval').neq('status', 'Rejected')
-          if (count !== null && count !== undefined) setStats(prev => ({ ...prev, totalDefects: count }))
-        } catch {}
+          const dRes = await api.get('/defects')
+          if (dRes && Array.isArray(dRes.defects)) {
+            appList = dRes.defects
+            setStats(prev => ({ ...prev, totalDefects: dRes.defects.length }))
+          }
+        } catch {
+          try {
+            const { data, count, error } = await supabase
+              .from('defects')
+              .select('*')
+              .neq('status', 'Pending Approval')
+              .neq('status', 'Rejected')
+              .order('created_at', { ascending: false })
+            if (!error && Array.isArray(data)) {
+              appList = data
+              if (count !== null && count !== undefined) setStats(prev => ({ ...prev, totalDefects: count }))
+              else setStats(prev => ({ ...prev, totalDefects: data.length }))
+            }
+          } catch {}
+        }
+
+        const formattedApproved = (appList || []).map(d => {
+          const rawWork = d.workRequired || d.work_required || d.description || ''
+          let scheduledDate = d.scheduledDate || null
+          let scheduledTime = d.scheduledTime || null
+          let allocatedCrew = d.allocatedCrew || null
+          let supervisor = d.supervisor || null
+
+          if (rawWork && rawWork.startsWith('[Scheduled:')) {
+            const match = rawWork.match(/^\[Scheduled:\s*([^|]+)\|\s*Crew:\s*([^|]+)\|\s*Lead:\s*([^\]]+)\]\s*(.*)$/s)
+            if (match) {
+              const schedPart = match[1].trim()
+              const schedSplit = schedPart.split(' ')
+              if (!scheduledDate) scheduledDate = schedSplit[0]
+              if (!scheduledTime) scheduledTime = schedSplit.slice(1).join(' ')
+              if (!allocatedCrew) allocatedCrew = match[2].trim()
+              if (!supervisor) supervisor = match[3].trim()
+            }
+          }
+
+          return {
+            id: d.id,
+            department: d.department || 'Engineering',
+            division: d.section_id || d.corridor_name?.split('|')[0]?.trim() || d.division || 'Northern Railway — Delhi Division (DLI)',
+            corridorName: d.corridor_name?.split('|')[1]?.trim() || d.corridor_name || d.section || 'Delhi - Agra Semi High-Speed Corridor',
+            location: d.location || (d.corridor_name?.includes('—') ? d.corridor_name.split('—')[1]?.trim() : 'Mathura Section'),
+            kmMarker: d.kmMarker || (d.km_start ? `KM ${d.km_start}` : 'KM 104.2'),
+            trackType: d.track_type || d.trackType || 'Up Main Line',
+            assetType: d.defect_category || d.defectCategory || d.assetType || 'Track Infrastructure',
+            severity: d.severity || 'Medium',
+            status: d.status || 'Pending Block',
+            workRequired: rawWork,
+            scheduledDate,
+            scheduledTime,
+            allocatedCrew,
+            supervisor,
+            photoUrl: d.photo_url || d.photoUrl || ''
+          }
+        })
+        setApprovedDefects(formattedApproved)
+
+        // If URL requested a specific defectId, automatically open the allocation modal
+        if (initialDefectId) {
+          const target = formattedApproved.find(d => d.id === initialDefectId)
+          if (target) {
+            handleOpenAllocationModal(target)
+          }
+        }
+      } catch (appErr) {
+        console.warn('Failed to load approved defects for allocation:', appErr)
       }
 
       // Load pending defects for approval queue
@@ -297,6 +385,143 @@ export default function AdminPage() {
     }
   }
 
+  const handleOpenAllocationModal = (defect) => {
+    setAllocatingDefect(defect)
+    setAllocDate(defect.scheduledDate || new Date(Date.now() + 86400000).toISOString().split('T')[0])
+    if (defect.scheduledTime && defect.scheduledTime.includes('-')) {
+      const parts = defect.scheduledTime.split('-').map(s => s.trim())
+      if (parts[0]) setAllocStartTime(parts[0])
+      if (parts[1]) setAllocEndTime(parts[1])
+    } else {
+      setAllocStartTime('01:30')
+      setAllocEndTime('04:30')
+    }
+    if (defect.allocatedCrew) setAllocCrew(defect.allocatedCrew)
+    if (defect.supervisor) setAllocSupervisor(defect.supervisor)
+  }
+
+  const handleSaveAllocation = async (e) => {
+    if (e && e.preventDefault) e.preventDefault()
+    if (!allocatingDefect) return
+    setSavingAllocation(true)
+    setAllocationMsg(null)
+    try {
+      const payload = {
+        scheduledDate: allocDate,
+        startTime: allocStartTime,
+        endTime: allocEndTime,
+        duration: allocDuration,
+        allocatedCrew: allocCrew,
+        supervisor: allocSupervisor,
+        workersCount: allocWorkersCount,
+        blockType: allocBlockType,
+        machinery: allocMachinery
+      }
+
+      // 1. Call backend allocate endpoint
+      try {
+        await api.patch(`/defects/${allocatingDefect.id}/allocate`, payload)
+      } catch (apiErr) {
+        console.warn('[Allocate API Warning]: Falling back to direct Supabase:', apiErr)
+      }
+
+      // 2. Direct Supabase update (format structured work_required)
+      const structuredHeader = `[Scheduled: ${allocDate} ${allocStartTime}-${allocEndTime} | Crew: ${allocCrew} | Lead: ${allocSupervisor}]`
+      const existingWork = allocatingDefect.workRequired?.replace(/^\[Scheduled:[^\]]+\]\s*/, '') || allocatingDefect.description?.replace(/^\[Scheduled:[^\]]+\]\s*/, '') || ''
+      const updatedWork = `${structuredHeader} ${existingWork}`.trim()
+
+      try {
+        await supabase
+          .from('defects')
+          .update({
+            status: 'Scheduled Block',
+            work_required: updatedWork
+          })
+          .eq('id', allocatingDefect.id)
+      } catch (sbErr) {
+        console.warn('[Allocate Supabase Warning]:', sbErr)
+      }
+
+      // Also create/update block_plans entry in Supabase
+      try {
+        await supabase
+          .from('block_plans')
+          .insert({
+            title: `Curfew Block: ${allocatingDefect.id} (${allocCrew})`,
+            corridor_id: allocatingDefect.corridorName || allocatingDefect.division,
+            section: allocatingDefect.corridorName,
+            track_type: allocatingDefect.trackType || 'Up Main Line',
+            start_km: allocatingDefect.kmMarker || 'KM 0.0',
+            end_km: allocatingDefect.kmMarker || 'KM 0.0',
+            window_start: `${allocDate}T${allocStartTime}:00`,
+            window_end: `${allocDate}T${allocEndTime}:00`,
+            department: allocatingDefect.department || 'Engineering',
+            status: 'Approved',
+            source_system: 'TMS',
+            defects_covered: [allocatingDefect.id],
+            crew_name: allocCrew,
+            supervisor_name: allocSupervisor
+          })
+      } catch (planErr) {
+        console.warn('[Block Plan Insert Supabase]:', planErr)
+      }
+
+      // Update local state
+      setApprovedDefects(prev => prev.map(d => {
+        if (d.id === allocatingDefect.id) {
+          return {
+            ...d,
+            status: 'Scheduled Block',
+            scheduledDate: allocDate,
+            scheduledTime: `${allocStartTime} - ${allocEndTime}`,
+            allocatedCrew: allocCrew,
+            supervisor: allocSupervisor,
+            workRequired: updatedWork
+          }
+        }
+        return d
+      }))
+
+      // If it was a pending defect, remove from pending
+      setPendingDefects(prev => prev.filter(d => d.id !== allocatingDefect.id))
+
+      setAllocationMsg({
+        type: 'success',
+        text: `✓ Corridor Block (${allocDate} ${allocStartTime}-${allocEndTime}) & ${allocCrew} allocated to defect ${allocatingDefect.id}!`
+      })
+
+      setTimeout(() => {
+        setAllocatingDefect(null)
+        setAllocationMsg(null)
+      }, 1500)
+    } catch (err) {
+      setAllocationMsg({ type: 'error', text: `Failed to save allocation: ${err.message}` })
+    } finally {
+      setSavingAllocation(false)
+    }
+  }
+
+  // Filtered Approved Defects for Allocation Tab
+  const filteredApprovedDefects = approvedDefects.filter(d => {
+    const isAllocated = !!(d.scheduledDate || d.allocatedCrew)
+    if (allocFilter === 'PENDING' && isAllocated) return false
+    if (allocFilter === 'SCHEDULED' && !isAllocated) return false
+
+    const q = allocSearch.toLowerCase()
+    if (!q) return true
+    return (
+      d.id.toLowerCase().includes(q) ||
+      (d.division && d.division.toLowerCase().includes(q)) ||
+      (d.corridorName && d.corridorName.toLowerCase().includes(q)) ||
+      (d.location && d.location.toLowerCase().includes(q)) ||
+      (d.allocatedCrew && d.allocatedCrew.toLowerCase().includes(q)) ||
+      (d.supervisor && d.supervisor.toLowerCase().includes(q)) ||
+      (d.assetType && d.assetType.toLowerCase().includes(q))
+    )
+  })
+
+  const awaitingAllocationCount = approvedDefects.filter(d => !d.scheduledDate || !d.allocatedCrew).length
+
   const handleBatchApproveAll = async () => {
     if (pendingDefects.length === 0) return
     if (!window.confirm(`Approve and publish ALL ${pendingDefects.length} pending defects to the public registry?`)) return
@@ -407,9 +632,31 @@ export default function AdminPage() {
       badge: pendingDefects.length > 0 ? 'ACTION NEEDED' : 'CLEAR',
       onClick: () => setActiveTab('approvals')
     },
-    { label: 'Public Defects', value: stats.totalDefects || 0, icon: BarChart3, color: 'var(--dept-snt)', trend: 'Visible across corridors' },
-    { label: 'Block Plans', value: stats.totalPlans || 0, icon: Database, color: 'var(--dept-trd)', trend: 'This planning cycle' },
-    { label: 'Total Users', value: stats.totalUsers || 4, icon: Users, color: 'var(--text-primary)', trend: `${stats.activeUsers || 4} active sessions` },
+    {
+      label: 'Block & Crew Allocation',
+      value: awaitingAllocationCount,
+      icon: Wrench,
+      color: awaitingAllocationCount > 0 ? 'var(--dept-conflict)' : 'var(--status-healthy)',
+      trend: `${approvedDefects.length - awaitingAllocationCount} blocks scheduled & crews deployed`,
+      badge: awaitingAllocationCount > 0 ? 'AWAITING SLOTS' : 'ALLOCATED',
+      onClick: () => setActiveTab('allocations')
+    },
+    {
+      label: 'Public Defects',
+      value: stats.totalDefects || 0,
+      icon: BarChart3,
+      color: 'var(--dept-snt)',
+      trend: 'Visible across corridors without login',
+      onClick: () => setActiveTab('allocations')
+    },
+    {
+      label: 'Total Users',
+      value: stats.totalUsers || 4,
+      icon: Users,
+      color: 'var(--text-primary)',
+      trend: `${stats.activeUsers || 4} active sessions`,
+      onClick: () => setActiveTab('users')
+    },
   ]
 
   const permissions = [
@@ -476,6 +723,12 @@ export default function AdminPage() {
               label: 'Pending Approvals',
               icon: Clock,
               badge: pendingDefects.length > 0 ? pendingDefects.length : null
+            },
+            {
+              key: 'allocations',
+              label: 'Block & Worker Allocation',
+              icon: Wrench,
+              badge: awaitingAllocationCount > 0 ? awaitingAllocationCount : null
             },
             { key: 'users', label: `User Roles & RBAC (${usersList.length})`, icon: Users },
             { key: 'permissions', label: 'Access Matrix', icon: Lock },
@@ -969,6 +1222,29 @@ export default function AdminPage() {
                           </button>
 
                           <button
+                            onClick={async () => {
+                              await handleApproveDefect(defect.id)
+                              handleOpenAllocationModal(defect)
+                            }}
+                            disabled={actionLoadingId === defect.id}
+                            className="btn btn-secondary"
+                            style={{
+                              padding: '8px 16px',
+                              fontSize: '0.8rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              borderColor: 'rgba(228, 164, 189, 0.5)',
+                              color: 'var(--accent)',
+                              fontWeight: 700
+                            }}
+                            title="Approve defect and open Block & Crew Allocation modal immediately"
+                          >
+                            <Wrench size={13} color="var(--accent)" />
+                            <span>Approve & Allocate Block</span>
+                          </button>
+
+                          <button
                             onClick={() => handleApproveDefect(defect.id)}
                             disabled={actionLoadingId === defect.id}
                             className="btn btn-primary"
@@ -986,6 +1262,280 @@ export default function AdminPage() {
                     </div>
                   </motion.div>
                 ))}
+              </div>
+            )}
+          </div>
+        </RevealWrapper>
+      )}
+
+      {/* Tab: Block & Worker Allocation */}
+      {activeTab === 'allocations' && (
+        <RevealWrapper delay={0.2}>
+          <div className="card" style={{ padding: 'var(--space-xl)', marginBottom: 'var(--space-2xl)', border: '1px solid var(--border)' }}>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 'var(--space-md)', marginBottom: 'var(--space-lg)' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                  <span className="badge" style={{ background: 'rgba(228, 164, 189, 0.2)', color: 'var(--accent)', fontWeight: 800 }}>
+                    ADMIN CORRIDOR TRAFFIC CONTROL
+                  </span>
+                  <span className="badge" style={{ background: 'rgba(109, 184, 123, 0.15)', color: 'var(--status-healthy)' }}>
+                    {approvedDefects.length} Approved Registry Defects
+                  </span>
+                </div>
+                <h3 style={{ fontSize: '1.35rem', fontWeight: 900, margin: '0 0 6px 0', letterSpacing: '-0.02em' }}>
+                  Block Plan & Worker Maintenance Gang Allocation
+                </h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0, maxWidth: '780px', lineHeight: 1.5 }}>
+                  Only System Administrators have authorization to schedule traffic curfews, designate line possession time slots, and assign maintenance gangs, supervisors, and heavy machinery to approved defects. Allocations are synchronized to both the public Defect Explorer and corridor block plans.
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <button
+                  onClick={loadData}
+                  disabled={refreshing}
+                  className="btn btn-secondary"
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 16px', fontSize: '0.82rem' }}
+                >
+                  <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
+                  <span>Refresh Allocations</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Notification alert banner */}
+            {allocationMsg && (
+              <div style={{
+                padding: '12px 18px',
+                borderRadius: '8px',
+                marginBottom: 'var(--space-lg)',
+                background: allocationMsg.type === 'success' ? 'rgba(109, 184, 123, 0.15)' : 'rgba(228, 164, 189, 0.15)',
+                border: `1px solid ${allocationMsg.type === 'success' ? 'rgba(109, 184, 123, 0.35)' : 'rgba(228, 164, 189, 0.35)'}`,
+                color: allocationMsg.type === 'success' ? 'var(--status-healthy)' : 'var(--text-primary)',
+                fontWeight: 700,
+                fontSize: '0.85rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px'
+              }}>
+                <CheckCircle2 size={16} color="var(--status-healthy)" />
+                <span>{allocationMsg.text}</span>
+              </div>
+            )}
+
+            {/* Filter and Search Bar */}
+            <div style={{
+              display: 'flex',
+              gap: '12px',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              padding: '12px 16px',
+              background: 'var(--bg-primary)',
+              borderRadius: 'var(--radius-card)',
+              border: '1px solid var(--border)',
+              marginBottom: 'var(--space-lg)'
+            }}>
+              <div style={{ flex: 1, minWidth: '220px', position: 'relative' }}>
+                <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                <input
+                  type="text"
+                  placeholder="Search by defect ID, corridor, location, crew, or supervisor..."
+                  value={allocSearch}
+                  onChange={(e) => setAllocSearch(e.target.value)}
+                  className="input"
+                  style={{ width: '100%', paddingLeft: '36px', fontSize: '0.82rem' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 700 }}>Filter:</span>
+                {[
+                  { key: 'ALL', label: `All Approved (${approvedDefects.length})` },
+                  { key: 'PENDING', label: `Awaiting Allocation (${awaitingAllocationCount})` },
+                  { key: 'SCHEDULED', label: `Scheduled & Deployed (${approvedDefects.length - awaitingAllocationCount})` }
+                ].map(flt => (
+                  <button
+                    key={flt.key}
+                    onClick={() => setAllocFilter(flt.key)}
+                    className="btn btn-secondary"
+                    style={{
+                      padding: '5px 12px',
+                      fontSize: '0.75rem',
+                      borderRadius: 'var(--radius-pill)',
+                      background: allocFilter === flt.key ? 'var(--text-primary)' : 'transparent',
+                      color: allocFilter === flt.key ? 'var(--bg-primary)' : 'var(--text-secondary)',
+                      borderColor: allocFilter === flt.key ? 'transparent' : 'var(--border)'
+                    }}
+                  >
+                    {flt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* List / Table of Approved Defects for Allocation */}
+            {filteredApprovedDefects.length === 0 ? (
+              <div style={{
+                textAlign: 'center',
+                padding: 'var(--space-3xl) var(--space-xl)',
+                background: 'var(--bg-primary)',
+                borderRadius: 'var(--radius-card)',
+                border: '1px dashed var(--border)'
+              }}>
+                <div style={{
+                  width: '64px',
+                  height: '64px',
+                  borderRadius: '50%',
+                  background: 'rgba(109, 184, 123, 0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 16px'
+                }}>
+                  <CheckCircle2 size={32} color="var(--status-healthy)" />
+                </div>
+                <h4 style={{ fontSize: '1.25rem', fontWeight: 800, margin: '0 0 6px 0' }}>
+                  {allocFilter === 'PENDING' ? 'All Approved Defects are Allocated' : 'No Defects Match Your Filter'}
+                </h4>
+                <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', maxWidth: '520px', margin: '0 auto', lineHeight: 1.5 }}>
+                  {allocFilter === 'PENDING'
+                    ? 'Every approved defect currently has a scheduled traffic curfew window and designated maintenance crew.'
+                    : 'Try clearing your search query or switching tabs.'}
+                </p>
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table className="table" style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '2px solid var(--border)', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      <th style={{ padding: '12px 10px' }}>DEFECT ID</th>
+                      <th style={{ padding: '12px 10px' }}>LOCATION & CORRIDOR</th>
+                      <th style={{ padding: '12px 10px' }}>ASSET & SEVERITY</th>
+                      <th style={{ padding: '12px 10px' }}>SCHEDULED BLOCK WINDOW</th>
+                      <th style={{ padding: '12px 10px' }}>ALLOCATED CREW & LEAD</th>
+                      <th style={{ padding: '12px 10px' }}>ACTIONS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredApprovedDefects.map((d) => {
+                      const isAllocated = !!(d.scheduledDate || d.allocatedCrew)
+                      return (
+                        <tr
+                          key={d.id}
+                          style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}
+                          className="table-row-hover"
+                        >
+                          <td style={{ padding: '14px 10px', verticalAlign: 'top' }}>
+                            <div style={{ fontWeight: 800, fontSize: '0.88rem', color: 'var(--accent)' }}>{d.id}</div>
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{d.department}</span>
+                          </td>
+
+                          <td style={{ padding: '14px 10px', verticalAlign: 'top' }}>
+                            <div style={{ fontWeight: 700, fontSize: '0.84rem' }}>{d.location}</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                              {d.corridorName} · {d.kmMarker} ({d.trackType})
+                            </div>
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                              fontSize: '0.7rem',
+                              fontWeight: 700,
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              background: 'rgba(228, 164, 189, 0.1)',
+                              color: 'var(--accent)',
+                              marginTop: '4px'
+                            }}>
+                              <MapPin size={10} /> {d.division}
+                            </span>
+                          </td>
+
+                          <td style={{ padding: '14px 10px', verticalAlign: 'top' }}>
+                            <div style={{ fontWeight: 700, fontSize: '0.84rem' }}>{d.assetType}</div>
+                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '4px' }}>
+                              <span className="badge" style={{
+                                background: d.severity === 'Critical' ? 'rgba(201, 79, 79, 0.2)' : d.severity === 'High' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(109, 184, 123, 0.15)',
+                                color: d.severity === 'Critical' ? 'var(--dept-conflict)' : d.severity === 'High' ? '#f59e0b' : 'var(--status-healthy)',
+                                fontSize: '10px',
+                                fontWeight: 800
+                              }}>
+                                {d.severity}
+                              </span>
+                              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{d.status}</span>
+                            </div>
+                          </td>
+
+                          <td style={{ padding: '14px 10px', verticalAlign: 'top' }}>
+                            {d.scheduledDate ? (
+                              <div style={{ background: 'rgba(228, 164, 189, 0.1)', border: '1px solid rgba(228, 164, 189, 0.3)', borderRadius: '6px', padding: '6px 10px', display: 'inline-block' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.78rem', fontWeight: 800, color: 'var(--accent)' }}>
+                                  <Clock size={12} />
+                                  <span>{d.scheduledDate}</span>
+                                </div>
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-primary)', fontWeight: 600, marginTop: '2px' }}>
+                                  Slot: {d.scheduledTime || 'Curfew Block'}
+                                </div>
+                              </div>
+                            ) : (
+                              <span style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                background: 'rgba(245, 158, 11, 0.12)',
+                                color: '#f59e0b',
+                                border: '1px solid rgba(245, 158, 11, 0.3)',
+                                padding: '4px 8px',
+                                borderRadius: '6px',
+                                fontSize: '0.74rem',
+                                fontWeight: 700
+                              }}>
+                                <AlertTriangle size={11} /> Unallocated Block
+                              </span>
+                            )}
+                          </td>
+
+                          <td style={{ padding: '14px 10px', verticalAlign: 'top' }}>
+                            {d.allocatedCrew ? (
+                              <div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.8rem', fontWeight: 800 }}>
+                                  <Wrench size={12} color="var(--accent)" />
+                                  <span>{d.allocatedCrew}</span>
+                                </div>
+                                <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                  Supervisor: {d.supervisor || 'SSE In-Charge'}
+                                </div>
+                              </div>
+                            ) : (
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                                No maintenance gang assigned
+                              </span>
+                            )}
+                          </td>
+
+                          <td style={{ padding: '14px 10px', verticalAlign: 'top' }}>
+                            <button
+                              onClick={() => handleOpenAllocationModal(d)}
+                              className="btn btn-primary"
+                              style={{
+                                padding: '7px 14px',
+                                fontSize: '0.75rem',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                whiteSpace: 'nowrap'
+                              }}
+                            >
+                              <Wrench size={12} />
+                              <span>{isAllocated ? 'Edit Allocation' : 'Allocate Block & Crew'}</span>
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
@@ -1367,6 +1917,258 @@ export default function AdminPage() {
       )}
 
       {/* Lightbox Photo Preview Modal */}
+      {/* Block & Worker Allocation Modal */}
+      {allocatingDefect && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.65)',
+            backdropFilter: 'blur(5px)',
+            zIndex: 1100,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 'var(--space-md)'
+          }}
+          onClick={() => setAllocatingDefect(null)}
+        >
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            onClick={(e) => e.stopPropagation()}
+            className="card"
+            style={{
+              width: '100%',
+              maxWidth: '680px',
+              background: 'var(--bg-primary)',
+              padding: 'var(--space-2xl)',
+              maxHeight: '90vh',
+              overflowY: 'auto'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-lg)' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                  <span className="badge" style={{ background: 'rgba(228, 164, 189, 0.2)', color: 'var(--accent)', fontWeight: 800 }}>
+                    ADMIN WORKFLOW
+                  </span>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--accent)' }}>{allocatingDefect.id}</span>
+                </div>
+                <h3 style={{ fontSize: '1.35rem', fontWeight: 900, margin: 0 }}>
+                  Allocate Corridor Block & Maintenance Gang
+                </h3>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
+                  Assign traffic curfew time slot, gang personnel, SSE supervisor, and machinery.
+                </p>
+              </div>
+              <button onClick={() => setAllocatingDefect(null)} className="btn-icon" style={{ border: 'none', background: 'var(--bg-secondary)' }}>
+                ✕
+              </button>
+            </div>
+
+            {/* Target Defect Context Card */}
+            <div style={{
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border)',
+              borderRadius: '10px',
+              padding: '12px 16px',
+              marginBottom: 'var(--space-lg)',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+              gap: '8px',
+              fontSize: '0.8rem'
+            }}>
+              <div>
+                <strong style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.7rem' }}>ASSET & SEVERITY</strong>
+                <span style={{ fontWeight: 800 }}>{allocatingDefect.assetType} ({allocatingDefect.severity})</span>
+              </div>
+              <div>
+                <strong style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.7rem' }}>LOCATION / KM</strong>
+                <span style={{ fontWeight: 700 }}>{allocatingDefect.location} ({allocatingDefect.kmMarker})</span>
+              </div>
+              <div>
+                <strong style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.7rem' }}>CORRIDOR / LINE</strong>
+                <span style={{ fontWeight: 700 }}>{allocatingDefect.corridorName} ({allocatingDefect.trackType})</span>
+              </div>
+            </div>
+
+            {/* Allocation Form */}
+            <form onSubmit={handleSaveAllocation} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+              {/* Row 1: Date & Curfew Type */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, marginBottom: '6px', color: 'var(--text-muted)' }}>
+                    SCHEDULED BLOCK DATE *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={allocDate}
+                    onChange={(e) => setAllocDate(e.target.value)}
+                    className="input"
+                    style={{ width: '100%', fontSize: '0.85rem' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, marginBottom: '6px', color: 'var(--text-muted)' }}>
+                    CURFEW BLOCK TYPE *
+                  </label>
+                  <select
+                    value={allocBlockType}
+                    onChange={(e) => setAllocBlockType(e.target.value)}
+                    className="input"
+                    style={{ width: '100%', fontSize: '0.85rem' }}
+                  >
+                    <option value="Night Shadow Curfew (01:30 - 04:30)">Night Shadow Curfew (01:30 - 04:30)</option>
+                    <option value="Full Track Curfew (Bidirectional)">Full Track Curfew (Bidirectional)</option>
+                    <option value="Turnout Point Interlocking Curfew">Turnout Point Interlocking Curfew</option>
+                    <option value="OHE Power De-energization Block">OHE Power De-energization Block</option>
+                    <option value="Emergency Urgent Track Curfew">Emergency Urgent Track Curfew</option>
+                    <option value="Rolling Maintenance Window">Rolling Maintenance Window</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Row 2: Time Window & Duration */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, marginBottom: '6px', color: 'var(--text-muted)' }}>
+                    START TIME *
+                  </label>
+                  <input
+                    type="time"
+                    required
+                    value={allocStartTime}
+                    onChange={(e) => setAllocStartTime(e.target.value)}
+                    className="input"
+                    style={{ width: '100%', fontSize: '0.85rem' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, marginBottom: '6px', color: 'var(--text-muted)' }}>
+                    END TIME *
+                  </label>
+                  <input
+                    type="time"
+                    required
+                    value={allocEndTime}
+                    onChange={(e) => setAllocEndTime(e.target.value)}
+                    className="input"
+                    style={{ width: '100%', fontSize: '0.85rem' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, marginBottom: '6px', color: 'var(--text-muted)' }}>
+                    DURATION
+                  </label>
+                  <input
+                    type="text"
+                    value={allocDuration}
+                    onChange={(e) => setAllocDuration(e.target.value)}
+                    placeholder="e.g. 3h 00m"
+                    className="input"
+                    style={{ width: '100%', fontSize: '0.85rem' }}
+                  />
+                </div>
+              </div>
+
+              {/* Row 3: Assigned Crew & Gang */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, marginBottom: '6px', color: 'var(--text-muted)' }}>
+                  ASSIGNED MAINTENANCE GANG / SQUAD *
+                </label>
+                <select
+                  value={allocCrew}
+                  onChange={(e) => setAllocCrew(e.target.value)}
+                  className="input"
+                  style={{ width: '100%', fontSize: '0.85rem' }}
+                >
+                  <option value="Track Gang #04 (PW Heavy Section)">Track Gang #04 (PW Heavy Section)</option>
+                  <option value="Track Maintenance Squad #12 (NDLS Yard)">Track Maintenance Squad #12 (NDLS Yard)</option>
+                  <option value="S&T Signal Relay & Interlocking Gang #03">S&T Signal Relay & Interlocking Gang #03</option>
+                  <option value="TRD OHE Overhead Wire Inspection Crew #08">TRD OHE Overhead Wire Inspection Crew #08</option>
+                  <option value="Bridge & Heavy Structural Gang #01">Bridge & Heavy Structural Gang #01</option>
+                  <option value="Rapid Response Mechanized Squad #05">Rapid Response Mechanized Squad #05</option>
+                  <option value="Points & Crossing Mechanized Gang #07">Points & Crossing Mechanized Gang #07</option>
+                </select>
+              </div>
+
+              {/* Row 4: Supervisor & Worker Count */}
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, marginBottom: '6px', color: 'var(--text-muted)' }}>
+                    SUPERVISOR / SSE IN-CHARGE *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={allocSupervisor}
+                    onChange={(e) => setAllocSupervisor(e.target.value)}
+                    placeholder="e.g. R.K. Sharma (SSE/PW)"
+                    className="input"
+                    style={{ width: '100%', fontSize: '0.85rem' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, marginBottom: '6px', color: 'var(--text-muted)' }}>
+                    CREW HEADCOUNT
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="50"
+                    value={allocWorkersCount}
+                    onChange={(e) => setAllocWorkersCount(Number(e.target.value))}
+                    className="input"
+                    style={{ width: '100%', fontSize: '0.85rem' }}
+                  />
+                </div>
+              </div>
+
+              {/* Row 5: Machinery */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, marginBottom: '6px', color: 'var(--text-muted)' }}>
+                  HEAVY MACHINERY & EQUIPMENT
+                </label>
+                <input
+                  type="text"
+                  value={allocMachinery}
+                  onChange={(e) => setAllocMachinery(e.target.value)}
+                  placeholder="e.g. Plasser Tamper DUOMATIC, Rail Saw, Tamping Machine, OHE Ladder Tower"
+                  className="input"
+                  style={{ width: '100%', fontSize: '0.85rem' }}
+                />
+              </div>
+
+              {/* Submit Footer */}
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: 'var(--space-md)', paddingTop: 'var(--space-md)', borderTop: '1px solid var(--border)' }}>
+                <button
+                  type="button"
+                  onClick={() => setAllocatingDefect(null)}
+                  className="btn btn-secondary"
+                  disabled={savingAllocation}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingAllocation}
+                  className="btn btn-primary"
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 24px' }}
+                >
+                  {savingAllocation ? <RefreshCw size={14} className="animate-spin" /> : <CheckCircle2 size={15} />}
+                  <span>{savingAllocation ? 'Saving Schedule...' : 'Save Block & Crew Allocation'}</span>
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Photo Preview Modal */}
       {previewPhoto && (
         <div
           onClick={() => setPreviewPhoto(null)}

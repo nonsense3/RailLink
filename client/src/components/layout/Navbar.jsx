@@ -249,24 +249,63 @@ export default function Navbar() {
             )}
           </button>
 
-          {/* AI Quick Action */}
-          <Link
-            to="/ai-studio"
-            className="btn btn-primary"
-            style={{
-              fontSize: '11px',
-              textDecoration: 'none',
-              padding: '8px 14px',
-              borderRadius: 'var(--radius-md)',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontWeight: 800
-            }}
-          >
-            <Zap size={14} />
-            AI PLAN
-          </Link>
+          {/* Authentication & Quick Action */}
+          {user ? (
+            user.role === 'admin' ? (
+              <Link
+                to="/admin"
+                className="btn btn-primary"
+                style={{
+                  fontSize: '11px',
+                  textDecoration: 'none',
+                  padding: '8px 14px',
+                  borderRadius: 'var(--radius-md)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontWeight: 800
+                }}
+              >
+                <Settings size={14} />
+                ADMIN PANEL
+              </Link>
+            ) : (
+              <Link
+                to="/defects"
+                className="btn btn-primary"
+                style={{
+                  fontSize: '11px',
+                  textDecoration: 'none',
+                  padding: '8px 14px',
+                  borderRadius: 'var(--radius-md)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontWeight: 800
+                }}
+              >
+                <Wrench size={14} />
+                REPORT DEFECT
+              </Link>
+            )
+          ) : (
+            <Link
+              to="/login"
+              className="btn btn-primary"
+              style={{
+                fontSize: '11px',
+                textDecoration: 'none',
+                padding: '8px 16px',
+                borderRadius: 'var(--radius-md)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontWeight: 800
+              }}
+            >
+              WORKER LOGIN
+            </Link>
+          )}
         </div>
       </nav>
 
