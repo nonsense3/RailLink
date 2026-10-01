@@ -15,12 +15,19 @@ import LoginPage from './pages/LoginPage'
 
 // Protected Route component
 function ProtectedLayout() {
-  const { user } = useAuthStore()
+  const { user, loading } = useAuthStore()
   const { sidebarCollapsed, mobileSidebarOpen, closeMobileSidebar } = useAppStore()
   const location = useLocation()
 
-  // Default to demo admin if not logged in so judges can instantly view without manual login
-  if (!user && !localStorage.getItem('RailLink_demo_user')) {
+  if (loading) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)' }}>
+        <div className="spinner" style={{ width: '40px', height: '40px' }} />
+      </div>
+    )
+  }
+
+  if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />
   }
 
@@ -67,23 +74,10 @@ function ProtectedLayout() {
 }
 
 export default function App() {
-  const { initialize, user, demoLogin } = useAuthStore()
+  const { initialize } = useAuthStore()
 
   useEffect(() => {
     initialize()
-    // Auto initialize demo user if not logged in so UI displays populated immediately
-    if (!user) {
-      const saved = localStorage.getItem('RailLink_demo_user')
-      if (saved) {
-        try {
-          useAuthStore.setState({ user: JSON.parse(saved), session: { demo: true }, loading: false })
-        } catch {
-          demoLogin('admin')
-        }
-      } else {
-        demoLogin('admin')
-      }
-    }
   }, [])
 
   return (
