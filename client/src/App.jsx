@@ -16,10 +16,17 @@ import HomePage from './pages/HomePage'
 
 // Protected Route component
 function ProtectedLayout() {
-  const { user } = useAuthStore()
+  const { user, loading } = useAuthStore()
   const { sidebarCollapsed, mobileSidebarOpen, closeMobileSidebar } = useAppStore()
   const location = useLocation()
 
+  if (loading) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)' }}>
+        <div className="spinner" style={{ width: '40px', height: '40px' }} />
+      </div>
+    )
+  }
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />
   }

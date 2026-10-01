@@ -58,11 +58,15 @@ router.post('/analyze', async (req, res) => {
 
     if (!analysis.isRailwayDefect) {
       console.warn(`[AI Analyze]: Rejected non-railway image — ${analysis.rejectionReason}`)
-      return res.status(422).json({
+      return res.json({
+        success: false,
         error: 'Image rejected: Not a valid railway defect photo',
         rejectionReason: analysis.rejectionReason,
         description: analysis.description,
         isRailwayDefect: false,
+        confidence: analysis.confidence,
+        defectType: analysis.defectType,
+        severity: analysis.severity,
         aiVerified: analysis.aiVerified
       })
     }

@@ -10,8 +10,8 @@ async function callGemini(prompt, systemInstruction = '', imageUrl = null) {
     throw new Error('GEMINI_API_KEY not configured in server/.env')
   }
 
-  const model = 'gemma-2-9b-it'
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
+  const MODELS = ['gemma-2-9b-it']
+  let lastError = null
 
   // Build parts — text always first, image second if provided
   const parts = [{ text: prompt }]
@@ -19,10 +19,22 @@ async function callGemini(prompt, systemInstruction = '', imageUrl = null) {
   if (imageUrl) {
     // Fetch image and convert to base64 for Gemini inline_data
     try {
-      const imgRes = await axios.get(imageUrl, { responseType: 'arraybuffer', timeout: 15000 })
-      const mimeType = imgRes.headers['content-type']?.split(';')[0] || 'image/jpeg'
-      const base64Data = Buffer.from(imgRes.data).toString('base64')
-      parts.push({ inline_data: { mime_type: mimeType, data: base64Data } })
+      let mimeType = 'image/jpeg'
+      let base64Data = ''
+
+      if (imageUrl.startsWith('data:')) {
+        const split = imageUrl.split(';base64,')
+        mimeType = split[0].replace('data:', '') || 'image/jpeg'
+        base64Data = split[1] || ''
+      } else {
+        const imgRes = await axios.get(imageUrl, { responseType: 'arraybuffer', timeout: 15000 })
+        mimeType = imgRes.headers['content-type']?.split(';')[0] || 'image/jpeg'
+        base64Data = Buffer.from(imgRes.data).toString('base64')
+      }
+
+      if (base64Data) {
+        parts.push({ inline_data: { mime_type: mimeType, data: base64Data } })
+      }
     } catch (imgErr) {
       throw new Error(`Failed to fetch image for analysis: ${imgErr.message}`)
     }
@@ -40,34 +52,46 @@ async function callGemini(prompt, systemInstruction = '', imageUrl = null) {
     payload.systemInstruction = { parts: [{ text: systemInstruction }] }
   }
 
-  const res = await axios.post(url, payload, {
-    headers: { 'Content-Type': 'application/json' },
-    timeout: 60000
-  })
+  for (const model of MODELS) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
+      const res = await axios.post(url, payload, {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 30000
+      })
 
-  const candidate = res.data?.candidates?.[0]
-  if (!candidate) {
-    const blockReason = res.data?.promptFeedback?.blockReason
-    throw new Error(`Gemini returned no candidates. Block reason: ${blockReason || 'unknown'}`)
+      const candidate = res.data?.candidates?.[0]
+      if (!candidate) {
+        const blockReason = res.data?.promptFeedback?.blockReason
+        throw new Error(`Gemini returned no candidates. Block reason: ${blockReason || 'unknown'}`)
+      }
+
+      // Find the text part (Gemini 3.8 may have thoughts or multiple parts)
+      const textPart = candidate?.content?.parts?.find(p => p.text) || candidate?.content?.parts?.[0]
+      const text = textPart?.text
+      if (!text) {
+        const finishReason = candidate?.finishReason
+        throw new Error(`Empty Gemini response. Finish reason: ${finishReason || 'unknown'}`)
+      }
+
+      const cleaned = text
+        .replace(/^```json\s*/i, '')
+        .replace(/^```\s*/i, '')
+        .replace(/```\s*$/i, '')
+        .trim()
+
+      try {
+        return JSON.parse(cleaned)
+      } catch {
+        return { rawResponse: text }
+      }
+    } catch (modelErr) {
+      lastError = modelErr
+      console.warn(`[AI Service]: Model ${model} returned error (${modelErr.response?.status || modelErr.message}), trying next model...`)
+    }
   }
 
-  const text = candidate?.content?.parts?.[0]?.text
-  if (!text) {
-    const finishReason = candidate?.finishReason
-    throw new Error(`Empty Gemini response. Finish reason: ${finishReason || 'unknown'}`)
-  }
-
-  const cleaned = text
-    .replace(/^```json\s*/i, '')
-    .replace(/^```\s*/i, '')
-    .replace(/```\s*$/i, '')
-    .trim()
-
-  try {
-    return JSON.parse(cleaned)
-  } catch {
-    return { rawResponse: text }
-  }
+  throw lastError || new Error('All AI models failed to respond')
 }
 
 /**
@@ -243,7 +267,7 @@ export function getAiStatus() {
   const hasKey = Boolean(config.gemini.apiKey && config.gemini.apiKey.trim().length > 0)
   return {
     configured: hasKey,
-    model: 'gemini-2.0-flash',
+    model: 'gemini-3.8-flash',
     provider: 'Google AI Studio',
     status: hasKey ? 'Ready' : 'API Key required'
   }
