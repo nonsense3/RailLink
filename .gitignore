@@ -1,4 +1,4 @@
-# Environment & Sensitive Config Files (NEVER COMMIT TO GITHUB)
+# Environment & Sensitive Config Files (NEVER COMMIT PLAINTEXT TO GITHUB)
 .env
 .env.*
 *.env
@@ -6,6 +6,10 @@
 *.env.development.local
 *.env.test.local
 *.env.production.local
+
+# SOPS encrypted versions are SAFE to commit
+!**/*.env.enc
+!.sops.yaml
 
 # Dependencies
 node_modules/
