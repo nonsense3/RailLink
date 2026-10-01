@@ -9,34 +9,6 @@ router.get('/', async (req, res) => {
     try {
       const { data, error } = await supabase.from('block_plans').select('*').order('created_at', { ascending: false })
       if (!error && Array.isArray(data)) {
-        if (data.length === 0 && dataStore.blockPlans && dataStore.blockPlans.length > 0) {
-          try {
-            const rowsToInsert = dataStore.blockPlans.map(p => ({
-              id: p.id,
-              title: p.title,
-              corridor_id: p.corridorId || 'CORR-GEN',
-              corridor: p.corridor,
-              track: p.track,
-              start_time: p.startTime || '02:00',
-              end_time: p.endTime || '05:30',
-              duration: p.duration || '3h 30m',
-              departments: p.departments || ['Engineering'],
-              tasks: p.tasks || [],
-              efficiency_score: p.efficiencyScore || '98.0%',
-              coordination_index: p.coordinationIndex || 'Joint Synchronized',
-              ai_optimized: p.aiOptimized !== false,
-              status: p.status || 'Scheduled',
-              trains_impacted: p.trainsImpacted || 0,
-              type: p.type || 'Tri-Disciplinary Integrated Block'
-            }))
-            await supabase.from('block_plans').insert(rowsToInsert)
-            console.log('[Supabase Auto-Seed]: Seeded master block plans into Supabase')
-          } catch (seedErr) {
-            console.warn('[Supabase Plans Seed Warning]:', seedErr.message)
-          }
-          return res.json({ plans: dataStore.blockPlans, source: 'RailLink Default Seed' })
-        }
-
         // Normalize Supabase snake_case to camelCase for frontend compatibility
         const plans = data.map(p => ({
           id: p.id,

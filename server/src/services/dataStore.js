@@ -185,11 +185,11 @@ export const defaultMasterDefects = [
 // In-memory unified repository
 class DataStore {
   constructor() {
-    this.defects = [...defaultMasterDefects]
+    this.defects = []
     this.corridors = corridorSlots
     this.timetable = coaTimetable
     this.blockRequests = []
-    this.blockPlans = [...defaultMasterPlans]
+    this.blockPlans = []
     this.syncHistory = []
   }
 

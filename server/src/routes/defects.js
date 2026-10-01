@@ -24,33 +24,6 @@ router.get('/', async (req, res) => {
 
       const { data, error } = await query
       if (!error && Array.isArray(data)) {
-        if (data.length === 0 && !department && !severity && !corridorId) {
-          try {
-            const rowsToInsert = defaultMasterDefects.map(d => ({
-              id: d.id,
-              department: d.department,
-              source_system: d.sourceSystem,
-              corridor_id: d.corridorId,
-              corridor_name: `${d.division} | ${d.corridorName} — ${d.location}`,
-              section_id: d.division,
-              track_type: d.trackType,
-              defect_category: d.defectCategory,
-              km_start: parseFloat((d.kmMarker || '').replace(/[^0-9.]/g, '')) || 0,
-              km_end: (parseFloat((d.kmMarker || '').replace(/[^0-9.]/g, '')) || 0) + 0.1,
-              severity: d.severity,
-              status: d.status,
-              photo_url: d.photoUrl,
-              work_required: d.description,
-              estimated_duration_min: d.estimatedDurationMin || 120,
-              ai_confidence: d.aiConfidence || '95.4%'
-            }))
-            await supabase.from('defects').insert(rowsToInsert)
-            console.log('[Supabase Auto-Seed]: Seeded default railway defects into Supabase')
-          } catch (seedErr) {
-            console.warn('[Supabase Seed Warning]:', seedErr.message)
-          }
-          return res.json({ defects: defaultMasterDefects, total: defaultMasterDefects.length, source: 'RailLink Seed DB' })
-        }
         const normalized = data.map(d => {
           const dept = d.department || 'Engineering'
           const rawSection = d.corridor_name || ''
@@ -160,6 +133,7 @@ router.get('/', async (req, res) => {
 // Create new defect
 router.post('/', async (req, res) => {
   const {
+    id,
     department,
     assetType,
     division,
@@ -169,7 +143,9 @@ router.post('/', async (req, res) => {
     trackType,
     severity,
     description,
-    photoUrl
+    photoUrl,
+    corridorName,
+    sourceSystem: customSourceSystem
   } = req.body
 
   if (!photoUrl) {
@@ -202,7 +178,7 @@ router.post('/', async (req, res) => {
   const fullSectionString = `${selectedDivision} | ${corridorSection} — ${specificLocation}`
 
   const newDefect = {
-    id: `DEF-${department ? department.substring(0, 3).toUpperCase() : 'IR'}-${Math.floor(1000 + Math.random() * 9000)}`,
+    id: id || `DEF-${department ? department.substring(0, 3).toUpperCase() : 'IR'}-${Math.floor(1000 + Math.random() * 9000)}`,
     department: department || 'Engineering',
     sourceSystem: department === 'Signal & Telecom' ? 'SMMS' : department === 'Traction Distribution' ? 'TDMS' : 'TMS',
     division: selectedDivision,
@@ -324,6 +300,43 @@ router.patch('/:id/approve', async (req, res) => {
     }
 
     res.json({ success: true, message: `Defect ${id} approved and published`, status: targetStatus })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Reject defect: marks defect as Rejected with rejection reason
+router.patch('/:id/reject', async (req, res) => {
+  try {
+    const { id } = req.params
+    const { reason = 'Rejected during Admin Review' } = req.body
+
+    const defect = dataStore.defects.find(d => d.id === id)
+    if (defect) {
+      defect.status = 'Rejected'
+      defect.rejectionReason = reason
+    }
+
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        const { error } = await supabase
+          .from('defects')
+          .update({
+            status: 'Rejected',
+            work_required: defect?.work_required ? `[REJECTED: ${reason}] ${defect.work_required}` : `[REJECTED: ${reason}]`
+          })
+          .eq('id', id)
+        if (error) {
+          console.warn('[Supabase Reject Error]:', error.message)
+        } else {
+          console.log(`[Supabase Reject Success]: Defect ${id} marked as Rejected`)
+        }
+      } catch (sbErr) {
+        console.warn('[Supabase Reject Warning]:', sbErr.message)
+      }
+    }
+
+    res.json({ success: true, message: `Defect ${id} marked as Rejected`, status: 'Rejected', reason })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
