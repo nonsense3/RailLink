@@ -12,6 +12,7 @@ import AnalyticsPage from './pages/AnalyticsPage'
 import AIStudioPage from './pages/AIStudioPage'
 import AdminPage from './pages/AdminPage'
 import LoginPage from './pages/LoginPage'
+import HomePage from './pages/HomePage'
 
 // Protected Route component
 function ProtectedLayout() {
@@ -19,8 +20,7 @@ function ProtectedLayout() {
   const { sidebarCollapsed, mobileSidebarOpen, closeMobileSidebar } = useAppStore()
   const location = useLocation()
 
-  // Default to demo admin if not logged in so judges can instantly view without manual login
-  if (!user && !localStorage.getItem('RailLink_demo_user')) {
+  if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />
   }
 
@@ -54,8 +54,12 @@ function ProtectedLayout() {
               <Route path="/plans" element={<BlockPlanPage />} />
               <Route path="/defects" element={<DefectPage />} />
               <Route path="/analytics" element={<AnalyticsPage />} />
-              <Route path="/ai-studio" element={<AIStudioPage />} />
-              <Route path="/admin" element={<AdminPage />} />
+              {user?.role === 'admin' && (
+                <>
+                  <Route path="/ai-studio" element={<AIStudioPage />} />
+                  <Route path="/admin" element={<AdminPage />} />
+                </>
+              )}
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </div>
@@ -67,27 +71,15 @@ function ProtectedLayout() {
 }
 
 export default function App() {
-  const { initialize, user, demoLogin } = useAuthStore()
+  const { initialize } = useAuthStore()
 
   useEffect(() => {
     initialize()
-    // Auto initialize demo user if not logged in so UI displays populated immediately
-    if (!user) {
-      const saved = localStorage.getItem('RailLink_demo_user')
-      if (saved) {
-        try {
-          useAuthStore.setState({ user: JSON.parse(saved), session: { demo: true }, loading: false })
-        } catch {
-          demoLogin('admin')
-        }
-      } else {
-        demoLogin('admin')
-      }
-    }
   }, [])
 
   return (
     <Routes>
+      <Route path="/" element={<HomePage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/*" element={<ProtectedLayout />} />
     </Routes>

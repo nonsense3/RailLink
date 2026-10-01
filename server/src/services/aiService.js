@@ -10,7 +10,7 @@ async function callGemini(prompt, systemInstruction = '', imageUrl = null) {
     throw new Error('GEMINI_API_KEY not configured in server/.env')
   }
 
-  const model = 'gemini-2.0-flash'
+  const model = 'gemma-2-9b-it'
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
 
   // Build parts — text always first, image second if provided

@@ -23,9 +23,9 @@ const navItems = [
   { path: '/defects', label: 'Defect Explorer', icon: Wrench },
   { label: 'Intelligence', section: true },
   { path: '/analytics', label: 'Analytics Hub', icon: BarChart3 },
-  { path: '/ai-studio', label: 'AI Studio', icon: Brain },
-  { label: 'System', section: true },
-  { path: '/admin', label: 'Admin Panel', icon: Settings },
+  { path: '/ai-studio', label: 'AI Studio', icon: Brain, requireAdmin: true },
+  { label: 'System', section: true, requireAdmin: true },
+  { path: '/admin', label: 'Admin Panel', icon: Settings, requireAdmin: true },
 ]
 
 export default function Sidebar() {
@@ -46,6 +46,8 @@ export default function Sidebar() {
       {/* Navigation Links */}
       <nav style={{ flex: 1, padding: 'var(--space-md) var(--space-sm)', overflowY: 'auto' }}>
         {navItems.map((item, index) => {
+          if (item.requireAdmin && user?.role !== 'admin') return null;
+
           if (item.section) {
             return !sidebarCollapsed ? (
               <div key={index} className="sidebar-section-label" style={{
