@@ -116,6 +116,8 @@ export default function DefectPage() {
   const [selectedDefect, setSelectedDefect] = useState(null)
   const [isUploading, setIsUploading] = useState(false)
   const [uploadSuccess, setUploadSuccess] = useState(false)
+  const [aiAnalysis, setAiAnalysis] = useState(null)   // Gemini Vision result
+  const [aiChecking, setAiChecking] = useState(false)   // AI verification in progress
 
   // Real Upload Form States — Explicit Division, Corridor & Location Tracking
   const [formDept, setFormDept] = useState('Engineering')
@@ -428,6 +430,7 @@ export default function DefectPage() {
 
     setIsUploading(true)
     setPhotoError(null)
+    setAiAnalysis(null)
 
     try {
       // On production (Render), wake up the server first to avoid cold-start timeout
@@ -442,7 +445,7 @@ export default function DefectPage() {
 
       let finalPhotoUrl = ''
 
-      // 1. Direct Cloudinary upload via unsigned preset (loaded directly from backend /api/config & server/.env)
+      // STEP 1: Upload photo to Cloudinary
       const serverConfig = (await fetchServerConfig()) || getConfig()
       const cloudName = serverConfig.cloudinary?.cloudName || 'eqrpvaua'
       const uploadPreset = serverConfig.cloudinary?.uploadPreset || 'raillink_uploads'
@@ -470,7 +473,7 @@ export default function DefectPage() {
         console.warn('[Direct Cloudinary Exception]:', cErr)
       }
 
-      // 2. Secondary fallback: Backend upload route
+      // Secondary fallback: Backend upload route
       if (!finalPhotoUrl) {
         try {
           const uploadRes = await api.post('/upload/photo', {
@@ -485,9 +488,33 @@ export default function DefectPage() {
         }
       }
 
-      // 3. Ultimate resilience fallback: base64 data URI (guarantees defect submission never fails)
+      // Last resort: base64 data URI
       if (!finalPhotoUrl) {
         finalPhotoUrl = selectedImageBase64
+      }
+
+      // STEP 2: AI VERIFICATION — Analyze uploaded photo before saving
+      // Only run if we have a real URL (not base64 fallback)
+      if (finalPhotoUrl && finalPhotoUrl.startsWith('http')) {
+        setAiChecking(true)
+        try {
+          const analyzeRes = await api.post('/upload/analyze', { photoUrl: finalPhotoUrl })
+          setAiAnalysis(analyzeRes)
+          setAiChecking(false)
+
+          if (analyzeRes && analyzeRes.isRailwayDefect === false) {
+            // AI REJECTED — block submission and inform inspector
+            setIsUploading(false)
+            setPhotoError(
+              `⚠️ AI Verification Failed: ${analyzeRes.rejectionReason || 'This image does not appear to show a railway defect.'}\n\nPlease upload an actual photo of a track, signal, or OHE infrastructure defect.`
+            )
+            return
+          }
+        } catch (analyzeErr) {
+          setAiChecking(false)
+          // AI endpoint failed — log but don't block (fail open)
+          console.warn('[AI Analyze Warning]: Proceeding without verification:', analyzeErr?.message)
+        }
       }
 
       // Save new defect to backend API (and Supabase)
@@ -524,8 +551,15 @@ export default function DefectPage() {
         console.warn('[Defect API Warning]: Backend save failed or static hosting, falling back to direct Supabase:', apiErr)
       }
 
-      // If backend was unreachable (e.g. static site hosting on Render), write directly to Supabase
+      // If backend was unreachable, write directly to Supabase
+      // NOTE: AI verification already ran above — safe to insert here
       if (!saved) {
+        // Double-check AI result before direct Supabase insert
+        if (aiAnalysis && aiAnalysis.isRailwayDefect === false) {
+          setIsUploading(false)
+          setPhotoError(`⚠️ AI Verification Failed: Image was rejected. Please upload a real railway defect photo.`)
+          return
+        }
         try {
           const { error: sbErr } = await supabase.from('defects').insert([{
             id: newDefectId,
@@ -544,7 +578,7 @@ export default function DefectPage() {
             work_required: descriptionText,
             photo_url: finalPhotoUrl,
             estimated_duration_min: 120,
-            ai_confidence: '97.8%'
+            ai_confidence: aiAnalysis?.confidence ? `${aiAnalysis.confidence}%` : '—'
           }])
           if (!sbErr) {
             saved = true
@@ -582,8 +616,10 @@ export default function DefectPage() {
           formAssetCategory,
           formSeverity === 'Critical' ? 'Priority 1 (Critical)' : formSeverity === 'High' ? 'Priority 2 (High)' : 'Routine'
         ],
-        aiConfidence: '97.8%',
-        description: descriptionText
+        aiConfidence: aiAnalysis?.confidence ? `${aiAnalysis.confidence}%` : '—',
+        aiDefectType: aiAnalysis?.defectType || null,
+        aiVerified: aiAnalysis?.isRailwayDefect ?? false,
+        description: aiAnalysis?.description || descriptionText
       }
       setDefects(prev => [optimisticDefect, ...prev.filter(d => d.id !== newDefectId)])
 
@@ -1694,22 +1730,33 @@ export default function DefectPage() {
                       Field photo upload is mandatory to submit
                     </span>
                   )}
+                  {/* AI analysis result badge */}
+                  {aiAnalysis && aiAnalysis.isRailwayDefect && (
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--status-healthy)', display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(109,184,123,0.1)', padding: '4px 10px', borderRadius: '99px', border: '1px solid rgba(109,184,123,0.3)' }}>
+                      <CheckCircle2 size={13} /> AI Verified · {aiAnalysis.defectType} · {aiAnalysis.confidence}%
+                    </span>
+                  )}
                   <button type="button" onClick={() => setActiveTab('gallery')} className="btn btn-secondary">
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    disabled={isUploading}
+                    disabled={isUploading || aiChecking}
                     className="btn btn-primary"
                     style={{
                       display: 'flex',
                       alignItems: 'center',
                       gap: '8px',
                       opacity: !selectedImageBase64 ? 0.75 : 1,
-                      cursor: isUploading ? 'not-allowed' : 'pointer'
+                      cursor: (isUploading || aiChecking) ? 'not-allowed' : 'pointer'
                     }}
                   >
-                    {isUploading ? (
+                    {aiChecking ? (
+                      <>
+                        <div className="spinner" style={{ width: '16px', height: '16px' }} />
+                        <span>AI Verifying Photo...</span>
+                      </>
+                    ) : isUploading ? (
                       <>
                         <div className="spinner" style={{ width: '16px', height: '16px' }} />
                         <span>Uploading to Live DB...</span>
