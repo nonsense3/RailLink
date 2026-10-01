@@ -1,40 +1,43 @@
-﻿import axios from 'axios'
+import axios from 'axios'
 import { config } from '../config/env.js'
 
 /**
- * Call Google Gemini API
- * Uses gemini-2.0-flash — stable, widely available model.
+ * Call Google Gemini API with optional image (Vision)
  */
-async function callGemini(prompt, systemInstruction = '') {
+async function callGemini(prompt, systemInstruction = '', imageUrl = null) {
   const apiKey = config.gemini.apiKey
   if (!apiKey) {
     throw new Error('GEMINI_API_KEY not configured in server/.env')
   }
 
-  // gemini-2.0-flash is the current stable model
   const model = 'gemini-2.0-flash'
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
 
+  // Build parts — text always first, image second if provided
+  const parts = [{ text: prompt }]
+
+  if (imageUrl) {
+    // Fetch image and convert to base64 for Gemini inline_data
+    try {
+      const imgRes = await axios.get(imageUrl, { responseType: 'arraybuffer', timeout: 15000 })
+      const mimeType = imgRes.headers['content-type']?.split(';')[0] || 'image/jpeg'
+      const base64Data = Buffer.from(imgRes.data).toString('base64')
+      parts.push({ inline_data: { mime_type: mimeType, data: base64Data } })
+    } catch (imgErr) {
+      throw new Error(`Failed to fetch image for analysis: ${imgErr.message}`)
+    }
+  }
+
   const payload = {
-    contents: [
-      {
-        role: 'user',
-        parts: [{ text: prompt }]
-      }
-    ],
+    contents: [{ role: 'user', parts }],
     generationConfig: {
-      temperature: 0.2,
-      maxOutputTokens: 4096
-      // NOTE: Do NOT set responseMimeType:'application/json' — it causes
-      // "model output must contain either output text or tool calls" errors
-      // when the model can't guarantee strict JSON. We parse manually below.
+      temperature: 0.1,
+      maxOutputTokens: 2048
     }
   }
 
   if (systemInstruction) {
-    payload.systemInstruction = {
-      parts: [{ text: systemInstruction }]
-    }
+    payload.systemInstruction = { parts: [{ text: systemInstruction }] }
   }
 
   const res = await axios.post(url, payload, {
@@ -42,7 +45,6 @@ async function callGemini(prompt, systemInstruction = '') {
     timeout: 60000
   })
 
-  // Check for finish reason errors
   const candidate = res.data?.candidates?.[0]
   if (!candidate) {
     const blockReason = res.data?.promptFeedback?.blockReason
@@ -55,7 +57,6 @@ async function callGemini(prompt, systemInstruction = '') {
     throw new Error(`Empty Gemini response. Finish reason: ${finishReason || 'unknown'}`)
   }
 
-  // Try to parse as JSON, handling markdown code fences
   const cleaned = text
     .replace(/^```json\s*/i, '')
     .replace(/^```\s*/i, '')
@@ -65,8 +66,101 @@ async function callGemini(prompt, systemInstruction = '') {
   try {
     return JSON.parse(cleaned)
   } catch {
-    // Return raw text wrapped so callers can detect it
     return { rawResponse: text }
+  }
+}
+
+/**
+ * Analyze a defect photo using Gemini Vision.
+ * Verifies the image is a real Indian Railways track/infrastructure defect.
+ * Rejects random/unrelated photos before they enter the system.
+ *
+ * @param {string} imageUrl - Cloudinary URL of the uploaded photo
+ * @returns {object} { isRailwayDefect, confidence, defectType, severity, description, rejectionReason }
+ */
+export async function analyzeDefectPhoto(imageUrl) {
+  const apiKey = config.gemini.apiKey
+
+  // If Gemini not configured, pass through with a warning (don't block)
+  if (!apiKey) {
+    console.warn('[AI Analysis]: GEMINI_API_KEY not set — skipping image verification')
+    return {
+      isRailwayDefect: true,
+      confidence: 0,
+      defectType: 'Unknown',
+      severity: 'Medium',
+      description: 'AI verification skipped (API key not configured)',
+      rejectionReason: null,
+      aiVerified: false
+    }
+  }
+
+  const prompt = `You are an expert Indian Railways track inspection AI.
+
+Analyze this image and determine if it shows a genuine Indian Railways track, infrastructure, or equipment defect that requires maintenance.
+
+VALID railway defect images include:
+- Rail cracks, fractures, breaks, or worn rails
+- Sleeper/tie damage (broken, cracked, missing, rotted)
+- Track geometry issues (misalignment, gauge deviation, buckled track)
+- Ballast problems (missing, fouled, washed away)
+- Joint defects (open joints, worn fish plates, missing bolts)
+- OHE/Overhead equipment issues (damaged catenary, insulators, masts)
+- Signal equipment damage
+- Bridge/culvert structural defects
+- Level crossing damage
+- Any visible railway infrastructure deterioration
+
+INVALID images include:
+- People, animals, vehicles, food, nature scenery unrelated to railway
+- Buildings, interiors, selfies, screenshots
+- Blurry/dark images where nothing can be identified
+- Any image with no railway infrastructure visible
+
+Respond ONLY with this exact JSON (no extra text):
+{
+  "isRailwayDefect": true or false,
+  "confidence": 0-100,
+  "defectType": "Rail Fracture | Sleeper Damage | Track Geometry | Ballast | OHE | Signal | Bridge | Joint | Other | Not a defect",
+  "severity": "Critical | High | Medium | Low | Not applicable",
+  "description": "One sentence describing what you see",
+  "rejectionReason": null or "reason the image was rejected"
+}`
+
+  try {
+    const result = await callGemini(
+      prompt,
+      'You are a strict Indian Railways infrastructure defect verification AI. Never approve random or unrelated images.',
+      imageUrl
+    )
+
+    // Validate response shape
+    if (typeof result.isRailwayDefect !== 'boolean') {
+      throw new Error('Invalid AI response shape')
+    }
+
+    return {
+      isRailwayDefect: result.isRailwayDefect,
+      confidence: result.confidence || 0,
+      defectType: result.defectType || 'Unknown',
+      severity: result.severity || 'Medium',
+      description: result.description || '',
+      rejectionReason: result.rejectionReason || null,
+      aiVerified: true
+    }
+  } catch (err) {
+    console.error('[AI Defect Analysis Error]:', err.message)
+    // On AI error — fail open with a flag so the client knows
+    return {
+      isRailwayDefect: true,
+      confidence: 0,
+      defectType: 'Unknown',
+      severity: 'Medium',
+      description: 'AI analysis failed — manual review required',
+      rejectionReason: null,
+      aiVerified: false,
+      error: err.message
+    }
   }
 }
 

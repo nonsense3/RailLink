@@ -1,5 +1,6 @@
 import express from 'express'
 import { uploadTrackPhoto } from '../services/cloudinaryService.js'
+import { analyzeDefectPhoto } from '../services/aiService.js'
 import { config } from '../config/env.js'
 
 const router = express.Router()
@@ -34,6 +35,51 @@ router.post('/photo', async (req, res) => {
   } catch (err) {
     console.error('[Upload Fatal Error]:', err)
     res.status(500).json({ error: err.message || 'Failed to process image' })
+  }
+})
+
+/**
+ * POST /api/upload/analyze
+ * Run Gemini Vision AI on an already-uploaded photo URL.
+ * Must be called AFTER /photo upload, BEFORE submitting the defect.
+ *
+ * Body: { photoUrl: "https://res.cloudinary.com/..." }
+ * Returns: { isRailwayDefect, confidence, defectType, severity, description, rejectionReason, aiVerified }
+ */
+router.post('/analyze', async (req, res) => {
+  try {
+    const { photoUrl } = req.body
+    if (!photoUrl) {
+      return res.status(400).json({ error: 'photoUrl is required' })
+    }
+
+    console.log(`[AI Analyze]: Running Gemini Vision on ${photoUrl}`)
+    const analysis = await analyzeDefectPhoto(photoUrl)
+
+    if (!analysis.isRailwayDefect) {
+      console.warn(`[AI Analyze]: Rejected non-railway image — ${analysis.rejectionReason}`)
+      return res.status(422).json({
+        error: 'Image rejected: Not a valid railway defect photo',
+        rejectionReason: analysis.rejectionReason,
+        description: analysis.description,
+        isRailwayDefect: false,
+        aiVerified: analysis.aiVerified
+      })
+    }
+
+    console.log(`[AI Analyze]: Approved — ${analysis.defectType} (${analysis.confidence}% confidence)`)
+    return res.json({
+      success: true,
+      isRailwayDefect: true,
+      confidence: analysis.confidence,
+      defectType: analysis.defectType,
+      severity: analysis.severity,
+      description: analysis.description,
+      aiVerified: analysis.aiVerified
+    })
+  } catch (err) {
+    console.error('[AI Analyze Fatal Error]:', err)
+    res.status(500).json({ error: err.message || 'AI analysis failed' })
   }
 })
 

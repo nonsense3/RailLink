@@ -2,6 +2,7 @@ import express from 'express'
 import { dataStore } from '../services/dataStore.js'
 import { supabase, isSupabaseConfigured } from '../lib/supabase.js'
 import { deleteTrackPhoto, deleteTrackPhotosByUrls, deleteAllTrackPhotos } from '../services/cloudinaryService.js'
+import { analyzeDefectPhoto } from '../services/aiService.js'
 const router = express.Router()
 
 // Get all defects with optional filter by department / severity / corridor
@@ -117,6 +118,26 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: 'Inspection photo is mandatory. Field defects cannot be logged without an inspection photo.' })
   }
 
+  // --- AI VERIFICATION GATE ---
+  // Reject random/unrelated images before saving to DB or triggering block planning
+  try {
+    const analysis = await analyzeDefectPhoto(photoUrl)
+    if (analysis.aiVerified && !analysis.isRailwayDefect) {
+      return res.status(422).json({
+        error: 'Image rejected by AI: Not a valid railway defect photo. Please upload an actual track or infrastructure defect image.',
+        rejectionReason: analysis.rejectionReason,
+        description: analysis.description,
+        isRailwayDefect: false
+      })
+    }
+    // Attach AI findings to enrich the defect record
+    req.aiAnalysis = analysis
+  } catch (aiErr) {
+    // Non-blocking — log but don't stop submission
+    console.warn('[Defect POST AI Gate Warning]:', aiErr.message)
+  }
+  // --- END AI GATE ---
+
   const selectedDivision = division || 'Northern Railway — Delhi Division (DLI)'
   const specificLocation = location || 'Mathura Section'
   const corridorSection = section || 'Delhi - Agra Semi High-Speed Corridor'
@@ -143,7 +164,9 @@ router.post('/', async (req, res) => {
       trackType || 'Up Main Line',
       severity === 'Critical' ? 'Priority 1 (Critical)' : severity === 'High' ? 'Priority 2 (High)' : 'Routine'
     ],
-    aiConfidence: '97.8%',
+    aiConfidence: req.aiAnalysis?.confidence ? `${req.aiAnalysis.confidence}%` : '97.8%',
+    aiDefectType: req.aiAnalysis?.defectType || null,
+    aiVerified: req.aiAnalysis?.aiVerified ?? false,
     description: description || `Field inspection recorded at ${specificLocation} (${kmMarker || 'KM 104.2'}) under ${selectedDivision}.`
   }
 
