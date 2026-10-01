@@ -5,9 +5,9 @@ import { deleteTrackPhoto, deleteTrackPhotosByUrls, deleteAllTrackPhotos } from 
 import { analyzeDefectPhoto } from '../services/aiService.js'
 const router = express.Router()
 
-// Get all defects with optional filter by department / severity / corridor
+// Get all defects with optional filter by department / severity / corridor / status
 router.get('/', async (req, res) => {
-  const { department, severity, corridorId } = req.query
+  const { department, severity, corridorId, status, includePending } = req.query
 
   if (isSupabaseConfigured() && supabase) {
     try {
@@ -15,6 +15,12 @@ router.get('/', async (req, res) => {
       if (department) query = query.ilike('department', `%${department}%`)
       if (severity) query = query.ilike('severity', severity)
       if (corridorId) query = query.eq('corridor_id', corridorId)
+      if (status) {
+        query = query.eq('status', status)
+      } else if (includePending !== 'true') {
+        // By default, pending approval and rejected defects are NOT publicly visible
+        query = query.neq('status', 'Pending Approval').neq('status', 'Rejected')
+      }
 
       const { data, error } = await query
       if (!error && Array.isArray(data)) {
@@ -122,6 +128,11 @@ router.get('/', async (req, res) => {
   if (department) list = list.filter(d => d.department.toLowerCase().includes(department.toLowerCase()))
   if (severity) list = list.filter(d => d.severity.toLowerCase() === severity.toLowerCase())
   if (corridorId) list = list.filter(d => d.corridorId === corridorId)
+  if (status) {
+    list = list.filter(d => d.status === status)
+  } else if (includePending !== 'true') {
+    list = list.filter(d => d.status !== 'Pending Approval' && d.status !== 'Rejected')
+  }
 
   res.json({ defects: list, total: list.length, source: 'RailLink Cache' })
 })
@@ -182,7 +193,7 @@ router.post('/', async (req, res) => {
     kmMarker: kmMarker || 'KM 104.2',
     trackType: trackType || 'Up Main Line',
     severity: severity || 'Medium',
-    status: 'Pending Block',
+    status: 'Pending Approval',
     reportedDate: new Date().toISOString().split('T')[0],
     dueDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
     photoUrl: photoUrl || 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=800&q=80',
@@ -228,7 +239,7 @@ router.post('/', async (req, res) => {
       if (insertError) {
         console.warn('[Supabase Insert Error]:', insertError.message)
       } else {
-        console.log(`[Supabase Insert Success]: Logged defect ${newDefect.id} in ${selectedDivision}`)
+        console.log(`[Supabase Insert Success]: Logged defect ${newDefect.id} in ${selectedDivision} (Pending Admin Approval)`)
       }
     } catch (err) {
       console.warn('[Supabase Insert Warning]:', err.message)
@@ -236,7 +247,7 @@ router.post('/', async (req, res) => {
   }
 
   dataStore.defects.unshift(newDefect)
-  res.status(201).json({ defect: newDefect })
+  res.status(201).json({ defect: newDefect, message: 'Defect submitted for Admin Review' })
 })
 
 // Update defect status
@@ -265,6 +276,52 @@ router.patch('/:id/status', async (req, res) => {
     }
 
     res.json({ success: true, message: `Defect ${id} marked as ${status}`, defect })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Approve defect: moves status to 'Pending Block' so it becomes publicly visible
+router.patch('/:id/approve', async (req, res) => {
+  try {
+    const { id } = req.params
+    const targetStatus = req.body.status || 'Pending Block'
+
+    const defect = dataStore.defects.find(d => d.id === id)
+    if (defect) defect.status = targetStatus
+
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        await supabase.from('defects').update({ status: targetStatus }).eq('id', id)
+      } catch (sbErr) {
+        console.warn('[Supabase Approve Warning]:', sbErr.message)
+      }
+    }
+
+    res.json({ success: true, message: `Defect ${id} approved and published`, status: targetStatus })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Reject defect: marks as Rejected
+router.patch('/:id/reject', async (req, res) => {
+  try {
+    const { id } = req.params
+    const reason = req.body.reason || 'Rejected by System Administrator'
+
+    const defect = dataStore.defects.find(d => d.id === id)
+    if (defect) defect.status = 'Rejected'
+
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        await supabase.from('defects').update({ status: 'Rejected' }).eq('id', id)
+      } catch (sbErr) {
+        console.warn('[Supabase Reject Warning]:', sbErr.message)
+      }
+    }
+
+    res.json({ success: true, message: `Defect ${id} rejected`, reason })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }

@@ -240,6 +240,8 @@ export default function BlockPlanPage() {
           const { data: sbDefects, error: sbDefError } = await supabase
             .from('defects')
             .select('*')
+            .neq('status', 'Pending Approval')
+            .neq('status', 'Rejected')
             .order('created_at', { ascending: false })
             .limit(100)
           if (!sbDefError && Array.isArray(sbDefects) && sbDefects.length > 0) {

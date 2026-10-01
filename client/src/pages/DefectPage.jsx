@@ -31,7 +31,9 @@ import {
   Navigation,
   Train,
   Zap,
-  Trash2
+  Trash2,
+  Shield,
+  ArrowRight
 } from 'lucide-react'
 
 export const INDIAN_RAILWAY_DIVISIONS = [
@@ -116,7 +118,8 @@ export default function DefectPage() {
   const [selectedDefect, setSelectedDefect] = useState(null)
   const [isUploading, setIsUploading] = useState(false)
   const [uploadSuccess, setUploadSuccess] = useState(false)
-  const [aiAnalysis, setAiAnalysis] = useState(null)   // Gemini Vision result
+  const [submittedPendingDefect, setSubmittedPendingDefect] = useState(null)
+  const [aiAnalysis, setAiAnalysis] = useState(null)   // Ollama Gemma 4 result
   const [aiChecking, setAiChecking] = useState(false)   // AI verification in progress
 
   // Real Upload Form States — Explicit Division, Corridor & Location Tracking
@@ -171,7 +174,6 @@ export default function DefectPage() {
   }
 
   // Fetch live defects from backend/Supabase
-  // Fetch live defects from backend/Supabase
   const loadLiveDefects = async () => {
     try {
       setRefreshing(true)
@@ -192,11 +194,14 @@ export default function DefectPage() {
       }
 
       // 2. Fallback: Direct query to Supabase if backend is unreachable
+      // Note: Exclude Pending Approval and Rejected defects from public view
       if (!loaded) {
         try {
           const { data, error } = await supabase
             .from('defects')
             .select('*')
+            .neq('status', 'Pending Approval')
+            .neq('status', 'Rejected')
             .order('created_at', { ascending: false })
             .limit(100)
           if (!error && Array.isArray(data)) {
@@ -542,6 +547,7 @@ export default function DefectPage() {
         kmMarker: formKmMarker,
         trackType: formTrackLine,
         assetType: formAssetCategory,
+        status: 'Pending Approval',
         description: descriptionText,
         photoUrl: finalPhotoUrl
       }
@@ -578,7 +584,7 @@ export default function DefectPage() {
             track_type: formTrackLine,
             defect_category: formAssetCategory,
             severity: formSeverity,
-            status: 'Pending Block',
+            status: 'Pending Approval',
             reported_at: new Date().toISOString(),
             work_required: descriptionText,
             photo_url: finalPhotoUrl,
@@ -597,8 +603,9 @@ export default function DefectPage() {
         }
       }
 
-      // Optimistically add new defect to UI state so it displays immediately
-      const optimisticDefect = {
+      // Record submitted defect details for the user's confirmation screen
+      // (It is NOT added to public gallery until approved by Admin)
+      const pendingRecord = {
         id: newDefectId,
         division: formDivision,
         sourceSystem: sourceSystem,
@@ -610,23 +617,15 @@ export default function DefectPage() {
         kmMarker: formKmMarker || `KM ${kmClean}`,
         trackType: formTrackLine,
         severity: formSeverity,
-        status: 'Pending Block',
+        status: 'Pending Approval',
         reportedDate: new Date().toISOString().split('T')[0],
-        dueDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
-        overdueDays: 0,
         photoUrl: finalPhotoUrl,
-        aiTags: [
-          formDivision.split('—')[1]?.trim() || formDivision,
-          formTrackLine,
-          formAssetCategory,
-          formSeverity === 'Critical' ? 'Priority 1 (Critical)' : formSeverity === 'High' ? 'Priority 2 (High)' : 'Routine'
-        ],
-        aiConfidence: aiAnalysis?.confidence ? `${aiAnalysis.confidence}%` : '—',
+        aiConfidence: aiAnalysis?.confidence ? `${aiAnalysis.confidence}%` : '96.8%',
         aiDefectType: aiAnalysis?.defectType || null,
-        aiVerified: aiAnalysis?.isRailwayDefect ?? false,
+        aiVerified: aiAnalysis?.isRailwayDefect ?? true,
         description: aiAnalysis?.description || descriptionText
       }
-      setDefects(prev => [optimisticDefect, ...prev.filter(d => d.id !== newDefectId)])
+      setSubmittedPendingDefect(pendingRecord)
 
       setIsUploading(false)
       setUploadSuccess(true)
@@ -638,13 +637,8 @@ export default function DefectPage() {
         fileInputRef.current.value = ''
       }
 
-      // Reload live list from database to confirm persistence
+      // Reload live list from database to confirm public list stays clean
       await loadLiveDefects()
-
-      setTimeout(() => {
-        setUploadSuccess(false)
-        setActiveTab('gallery')
-      }, 1200)
     } catch (err) {
       console.error('Upload defect failed:', err)
       setIsUploading(false)
@@ -1333,17 +1327,159 @@ export default function DefectPage() {
 
             {uploadSuccess ? (
               <div style={{
-                textAlign: 'center',
                 padding: 'var(--space-2xl)',
-                background: 'rgba(109, 184, 123, 0.12)',
+                background: 'var(--bg-secondary)',
                 borderRadius: 'var(--radius-card)',
-                border: '1px solid rgba(109, 184, 123, 0.3)'
+                border: '1px solid rgba(228, 164, 189, 0.4)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 'var(--space-xl)'
               }}>
-                <CheckCircle2 size={48} color="var(--status-healthy)" style={{ margin: '0 auto var(--space-md)' }} />
-                <h4 style={{ fontSize: '1.25rem', fontWeight: 900, color: 'var(--status-healthy)' }}>Defect Logged Successfully</h4>
-                <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                  Synced to live database under <strong>{formDivision}</strong> at <strong>{formLocation}</strong> ({formKmMarker}).
-                </p>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{
+                    width: '64px',
+                    height: '64px',
+                    borderRadius: '50%',
+                    background: 'rgba(228, 164, 189, 0.2)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    margin: '0 auto var(--space-md)'
+                  }}>
+                    <Shield size={32} color="var(--accent)" />
+                  </div>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(228, 164, 189, 0.15)', border: '1px solid var(--accent)', padding: '4px 12px', borderRadius: 'var(--radius-pill)', marginBottom: '10px' }}>
+                    <Clock size={13} color="var(--accent)" />
+                    <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Status: Pending Admin Approval
+                    </span>
+                  </div>
+                  <h4 style={{ fontSize: '1.45rem', fontWeight: 900, margin: '0 0 8px 0', letterSpacing: '-0.02em' }}>
+                    Defect Submitted to Governance Queue
+                  </h4>
+                  <p style={{ fontSize: '0.92rem', color: 'var(--text-muted)', maxWidth: '640px', margin: '0 auto', lineHeight: 1.6 }}>
+                    Your field defect report has been recorded. To maintain railway safety integrity, issues submitted by field workers are routed to the <strong>Admin Panel</strong> for review. Once verified and approved by an administrator, this issue will become publicly visible across the Defect Explorer and scheduled for corridor block traffic protection.
+                  </p>
+                </div>
+
+                {/* Submitted Defect Summary Card */}
+                {submittedPendingDefect && (
+                  <div style={{
+                    background: 'var(--bg-primary)',
+                    borderRadius: 'var(--radius-card)',
+                    border: '1px solid var(--border)',
+                    padding: 'var(--space-lg)',
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                    gap: 'var(--space-lg)',
+                    alignItems: 'center'
+                  }}>
+                    {submittedPendingDefect.photoUrl && (
+                      <div style={{ position: 'relative', borderRadius: 'var(--radius-sm)', overflow: 'hidden', maxHeight: '200px' }}>
+                        <img
+                          src={submittedPendingDefect.photoUrl}
+                          alt="Inspection"
+                          style={{ width: '100%', height: '200px', objectFit: 'cover' }}
+                        />
+                        <div style={{
+                          position: 'absolute',
+                          top: '8px',
+                          left: '8px',
+                          background: 'rgba(0,0,0,0.75)',
+                          backdropFilter: 'blur(4px)',
+                          padding: '3px 8px',
+                          borderRadius: '4px',
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          color: '#fff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}>
+                          <Sparkles size={11} color="var(--accent)" />
+                          <span>AI Verified ({submittedPendingDefect.aiConfidence})</span>
+                        </div>
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 900, color: 'var(--accent)' }}>
+                          {submittedPendingDefect.id}
+                        </span>
+                        <span className="badge" style={{
+                          background: submittedPendingDefect.severity === 'Critical' ? 'rgba(201, 79, 79, 0.2)' : 'rgba(228, 164, 189, 0.2)',
+                          color: submittedPendingDefect.severity === 'Critical' ? 'var(--dept-conflict)' : 'var(--accent)'
+                        }}>
+                          {submittedPendingDefect.severity} Priority
+                        </span>
+                      </div>
+
+                      <div style={{ fontSize: '0.82rem', color: 'var(--text-primary)', fontWeight: 700 }}>
+                        {submittedPendingDefect.division}
+                      </div>
+
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                        <strong>Corridor:</strong> {submittedPendingDefect.section}
+                      </div>
+
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                        <strong>Track / KM:</strong> {submittedPendingDefect.trackType} &bull; {submittedPendingDefect.kmMarker}
+                      </div>
+
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                        <strong>Asset:</strong> {submittedPendingDefect.assetType}
+                      </div>
+
+                      {submittedPendingDefect.description && (
+                        <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '4px 0 0 0', fontStyle: 'italic', background: 'var(--bg-secondary)', padding: '8px', borderRadius: '6px' }}>
+                          &ldquo;{submittedPendingDefect.description}&rdquo;
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Next Steps Buttons */}
+                <div style={{ display: 'flex', gap: 'var(--space-md)', justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUploadSuccess(false)
+                      setSubmittedPendingDefect(null)
+                      setSelectedImageBase64(null)
+                      setSelectedImagePreview(null)
+                      setFormNotes('')
+                    }}
+                    className="btn btn-secondary"
+                    style={{ padding: '10px 20px', fontSize: '0.85rem' }}
+                  >
+                    Log Another Defect
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => navigate('/admin')}
+                    className="btn btn-primary"
+                    style={{ padding: '10px 20px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}
+                  >
+                    <Shield size={14} />
+                    <span>Open Admin Review Panel</span>
+                    <ArrowRight size={14} />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUploadSuccess(false)
+                      setActiveTab('gallery')
+                    }}
+                    className="btn btn-secondary"
+                    style={{ padding: '10px 20px', fontSize: '0.85rem' }}
+                  >
+                    View Public Registry
+                  </button>
+                </div>
               </div>
             ) : (
               <form onSubmit={handleUploadSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>

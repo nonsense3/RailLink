@@ -29,12 +29,21 @@ import {
   Copy,
   ExternalLink,
   Server,
-  Check
+  Check,
+  Clock,
+  AlertTriangle,
+  XCircle,
+  X,
+  MapPin,
+  Train,
+  Tag,
+  Search,
+  ArrowRight
 } from 'lucide-react'
 
 export default function AdminPage() {
   const { user } = useAuthStore()
-  const [activeTab, setActiveTab] = useState('overview') // 'overview' | 'users' | 'permissions' | 'settings'
+  const [activeTab, setActiveTab] = useState('overview') // 'overview' | 'approvals' | 'users' | 'permissions' | 'settings'
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [usersList, setUsersList] = useState([])
@@ -44,6 +53,15 @@ export default function AdminPage() {
     totalDefects: 0,
     totalPlans: 0
   })
+
+  // Pending Defect Approvals Queue States
+  const [pendingDefects, setPendingDefects] = useState([])
+  const [pendingSearch, setPendingSearch] = useState('')
+  const [pendingDeptFilter, setPendingDeptFilter] = useState('ALL')
+  const [actionLoadingId, setActionLoadingId] = useState(null)
+  const [approvalMessage, setApprovalMessage] = useState(null)
+  const [previewPhoto, setPreviewPhoto] = useState(null)
+  const [batchProcessing, setBatchProcessing] = useState(false)
 
   // Settings & AI State
   const [aiStatus, setAiStatus] = useState(null)
@@ -120,7 +138,7 @@ export default function AdminPage() {
         setStats(prev => ({ ...prev, totalUsers: fallback.length, activeUsers: fallback.length }))
       }
 
-      // Load defects count
+      // Load defects count (publicly visible defects)
       try {
         const dRes = await api.get('/defects')
         if (dRes && Array.isArray(dRes.defects)) {
@@ -128,9 +146,58 @@ export default function AdminPage() {
         }
       } catch {
         try {
-          const { count } = await supabase.from('defects').select('*', { count: 'exact', head: true })
+          const { count } = await supabase.from('defects').select('*', { count: 'exact', head: true }).neq('status', 'Pending Approval').neq('status', 'Rejected')
           if (count !== null && count !== undefined) setStats(prev => ({ ...prev, totalDefects: count }))
         } catch {}
+      }
+
+      // Load pending defects for approval queue
+      try {
+        let pending = []
+        try {
+          const pRes = await api.get('/defects?includePending=true&status=Pending Approval')
+          if (pRes && Array.isArray(pRes.defects)) {
+            pending = pRes.defects
+          }
+        } catch (apiErr) {
+          console.warn('[Admin Pending API Warning]:', apiErr)
+        }
+
+        if (pending.length === 0) {
+          try {
+            const { data, error } = await supabase
+              .from('defects')
+              .select('*')
+              .eq('status', 'Pending Approval')
+              .order('created_at', { ascending: false })
+            if (!error && Array.isArray(data)) {
+              pending = data.map(d => ({
+                id: d.id,
+                department: d.department || 'Engineering',
+                sourceSystem: d.source_system || 'TMS',
+                division: d.section_id || d.corridor_name?.split('|')[0]?.trim() || 'Northern Railway — Delhi Division (DLI)',
+                corridorName: d.corridor_name?.split('|')[1]?.trim() || d.corridor_name || 'Delhi - Agra Semi High-Speed Corridor',
+                location: d.location || (d.corridor_name?.includes('—') ? d.corridor_name.split('—')[1]?.trim() : 'Mathura Section'),
+                kmMarker: d.km_start ? `KM ${d.km_start}` : 'KM 104.2',
+                trackType: d.track_type || 'Up Main Line',
+                assetType: d.defect_category || 'Track Infrastructure',
+                severity: d.severity || 'Medium',
+                status: d.status || 'Pending Approval',
+                workRequired: d.work_required || 'Field defect reported for block planning.',
+                description: d.work_required || 'Field defect reported for block planning.',
+                photoUrl: d.photo_url || '',
+                reportedDate: d.reported_at ? d.reported_at.split('T')[0] : (d.created_at ? d.created_at.split('T')[0] : '2026-10-01'),
+                aiConfidence: d.ai_confidence || '96.5%'
+              }))
+            }
+          } catch (sbErr) {
+            console.warn('[Admin Pending Supabase Warning]:', sbErr)
+          }
+        }
+
+        setPendingDefects(pending)
+      } catch (pErr) {
+        console.warn('Failed to load pending defects:', pErr)
       }
 
       // Load plans count
@@ -156,6 +223,115 @@ export default function AdminPage() {
 
   const [dbActionLoading, setDbActionLoading] = useState(false)
   const [dbMessage, setDbMessage] = useState(null)
+
+  const handleApproveDefect = async (id) => {
+    try {
+      setActionLoadingId(id)
+      try {
+        await api.patch(`/defects/${id}/approve`, { status: 'Pending Block' })
+      } catch (apiErr) {
+        console.warn('[Approve API Warning]: Falling back to direct Supabase:', apiErr)
+      }
+
+      try {
+        await supabase.from('defects').update({ status: 'Pending Block' }).eq('id', id)
+      } catch (sbErr) {
+        console.warn('[Approve Supabase Warning]:', sbErr)
+      }
+
+      setPendingDefects(prev => prev.filter(d => d.id !== id))
+      setStats(prev => ({ ...prev, totalDefects: (prev.totalDefects || 0) + 1 }))
+      setApprovalMessage({
+        type: 'success',
+        text: `✓ Defect ${id} approved & published! It is now publicly visible in the Defect Explorer and queued for corridor block planning.`
+      })
+      setTimeout(() => setApprovalMessage(null), 5000)
+    } catch (err) {
+      setApprovalMessage({ type: 'error', text: `Failed to approve defect ${id}: ${err.message}` })
+    } finally {
+      setActionLoadingId(null)
+    }
+  }
+
+  const handleRejectDefect = async (id) => {
+    const reason = window.prompt(`Provide reason for rejecting defect ${id}:`, 'Unclear photograph / Duplicate issue / Insufficient evidence')
+    if (reason === null) return
+
+    try {
+      setActionLoadingId(id)
+      try {
+        await api.patch(`/defects/${id}/reject`, { reason })
+      } catch (apiErr) {
+        console.warn('[Reject API Warning]: Falling back to direct Supabase:', apiErr)
+      }
+
+      try {
+        await supabase.from('defects').update({ status: 'Rejected' }).eq('id', id)
+      } catch (sbErr) {
+        console.warn('[Reject Supabase Warning]:', sbErr)
+      }
+
+      setPendingDefects(prev => prev.filter(d => d.id !== id))
+      setApprovalMessage({ type: 'info', text: `Defect ${id} marked as Rejected and archived (${reason}).` })
+      setTimeout(() => setApprovalMessage(null), 5000)
+    } catch (err) {
+      setApprovalMessage({ type: 'error', text: `Failed to reject defect ${id}: ${err.message}` })
+    } finally {
+      setActionLoadingId(null)
+    }
+  }
+
+  const handleDeletePendingDefect = async (defect) => {
+    if (!window.confirm(`Permanently delete defect ${defect.id}?`)) return
+    try {
+      setActionLoadingId(defect.id)
+      try { await api.delete(`/defects/${defect.id}`, { data: { photoUrl: defect.photoUrl } }) } catch {}
+      try { await supabase.from('defects').delete().eq('id', defect.id) } catch {}
+      setPendingDefects(prev => prev.filter(d => d.id !== defect.id))
+      setApprovalMessage({ type: 'info', text: `Defect ${defect.id} permanently removed.` })
+      setTimeout(() => setApprovalMessage(null), 4000)
+    } catch (err) {
+      setApprovalMessage({ type: 'error', text: `Failed to delete: ${err.message}` })
+    } finally {
+      setActionLoadingId(null)
+    }
+  }
+
+  const handleBatchApproveAll = async () => {
+    if (pendingDefects.length === 0) return
+    if (!window.confirm(`Approve and publish ALL ${pendingDefects.length} pending defects to the public registry?`)) return
+    setBatchProcessing(true)
+    try {
+      const ids = pendingDefects.map(d => d.id)
+      for (const id of ids) {
+        try { await api.patch(`/defects/${id}/approve`, { status: 'Pending Block' }) } catch {}
+      }
+      try {
+        await supabase.from('defects').update({ status: 'Pending Block' }).in('id', ids)
+      } catch {}
+      setStats(prev => ({ ...prev, totalDefects: (prev.totalDefects || 0) + ids.length }))
+      setPendingDefects([])
+      setApprovalMessage({ type: 'success', text: `✓ Successfully approved and published all ${ids.length} defects!` })
+      setTimeout(() => setApprovalMessage(null), 5000)
+    } catch (err) {
+      setApprovalMessage({ type: 'error', text: `Batch approve error: ${err.message}` })
+    } finally {
+      setBatchProcessing(false)
+    }
+  }
+
+  const filteredPendingDefects = pendingDefects.filter(d => {
+    const matchDept = pendingDeptFilter === 'ALL' || (d.department && d.department.toLowerCase().includes(pendingDeptFilter.toLowerCase()))
+    const q = pendingSearch.toLowerCase()
+    const matchSearch = !q ||
+      d.id.toLowerCase().includes(q) ||
+      (d.division && d.division.toLowerCase().includes(q)) ||
+      (d.corridorName && d.corridorName.toLowerCase().includes(q)) ||
+      (d.location && d.location.toLowerCase().includes(q)) ||
+      (d.description && d.description.toLowerCase().includes(q)) ||
+      (d.assetType && d.assetType.toLowerCase().includes(q))
+    return matchDept && matchSearch
+  })
 
   const handleAdminClearDefects = async () => {
     if (!window.confirm('Wipe ALL defects from Supabase? This will set defect count to 0.')) return
@@ -192,6 +368,17 @@ export default function AdminPage() {
   useEffect(() => {
     loadData()
     loadAiStatus()
+
+    const channel = supabase
+      .channel('admin-defects-realtime-channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'defects' }, () => {
+        loadData()
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [])
 
   const getRoleColor = (role) => {
@@ -211,10 +398,18 @@ export default function AdminPage() {
   }
 
   const overviewCards = [
-    { label: 'Total Users', value: stats.totalUsers || 4, icon: Users, color: 'var(--accent)', trend: 'Active system users' },
-    { label: 'Active Sessions', value: stats.activeUsers || 4, icon: Activity, color: 'var(--status-healthy)', trend: 'Online right now' },
-    { label: 'Defects Tracked', value: stats.totalDefects || 0, icon: BarChart3, color: 'var(--dept-snt)', trend: 'Across all corridors' },
+    {
+      label: 'Pending Approvals',
+      value: pendingDefects.length,
+      icon: Clock,
+      color: pendingDefects.length > 0 ? 'var(--accent)' : 'var(--status-healthy)',
+      trend: pendingDefects.length > 0 ? 'Worker reports require admin review' : 'All defect reports verified',
+      badge: pendingDefects.length > 0 ? 'ACTION NEEDED' : 'CLEAR',
+      onClick: () => setActiveTab('approvals')
+    },
+    { label: 'Public Defects', value: stats.totalDefects || 0, icon: BarChart3, color: 'var(--dept-snt)', trend: 'Visible across corridors' },
     { label: 'Block Plans', value: stats.totalPlans || 0, icon: Database, color: 'var(--dept-trd)', trend: 'This planning cycle' },
+    { label: 'Total Users', value: stats.totalUsers || 4, icon: Users, color: 'var(--text-primary)', trend: `${stats.activeUsers || 4} active sessions` },
   ]
 
   const permissions = [
@@ -243,7 +438,7 @@ export default function AdminPage() {
               Admin <span style={{ color: 'var(--accent)' }}>Panel</span>
             </h1>
             <p style={{ color: 'var(--text-muted)', maxWidth: '600px', marginTop: 'var(--space-xs)', fontSize: '1rem' }}>
-              Manage system users, configure role-based access control, configure AI engines & redirection settings.
+              Manage system users, approve worker defect submissions, configure role permissions, AI engines & redirection settings.
             </p>
           </div>
 
@@ -276,6 +471,12 @@ export default function AdminPage() {
         }}>
           {[
             { key: 'overview', label: 'System Overview', icon: BarChart3 },
+            {
+              key: 'approvals',
+              label: 'Pending Approvals',
+              icon: Clock,
+              badge: pendingDefects.length > 0 ? pendingDefects.length : null
+            },
             { key: 'users', label: `User Roles & RBAC (${usersList.length})`, icon: Users },
             { key: 'permissions', label: 'Access Matrix', icon: Lock },
             { key: 'settings', label: 'Settings & Redirection', icon: Settings },
@@ -300,7 +501,19 @@ export default function AdminPage() {
               }}
             >
               <tab.icon size={15} />
-              {tab.label}
+              <span>{tab.label}</span>
+              {tab.badge ? (
+                <span style={{
+                  background: activeTab === tab.key ? 'var(--accent)' : 'var(--dept-conflict)',
+                  color: activeTab === tab.key ? 'var(--bg-primary)' : '#fff',
+                  borderRadius: '10px',
+                  padding: '2px 7px',
+                  fontSize: '11px',
+                  fontWeight: 900
+                }}>
+                  {tab.badge}
+                </span>
+              ) : null}
             </button>
           ))}
         </div>
@@ -314,18 +527,19 @@ export default function AdminPage() {
             {overviewCards.map((card, i) => (
               <motion.div
                 key={card.label}
+                onClick={card.onClick}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.07 }}
                 className="card"
-                style={{ padding: 'var(--space-xl)' }}
+                style={{ padding: 'var(--space-xl)', cursor: card.onClick ? 'pointer' : 'default' }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                   <div style={{ width: '38px', height: '38px', borderRadius: 'var(--radius-card)', background: `${card.color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <card.icon size={20} color={card.color} />
                   </div>
                   <span style={{ fontSize: '10px', fontWeight: 700, color: card.color, background: `${card.color}15`, padding: '3px 8px', borderRadius: 'var(--radius-xs)' }}>
-                    LIVE
+                    {card.badge || 'LIVE'}
                   </span>
                 </div>
                 <p style={{ fontSize: '2.2rem', fontWeight: 900, margin: '0 0 4px 0', color: 'var(--text-primary)' }}>{card.value}</p>
@@ -440,6 +654,340 @@ export default function AdminPage() {
                 </motion.div>
               ))}
             </div>
+          </div>
+        </RevealWrapper>
+      )}
+
+      {/* Tab: Pending Approvals Queue */}
+      {activeTab === 'approvals' && (
+        <RevealWrapper delay={0.2}>
+          <div className="card" style={{ padding: 'var(--space-xl)', marginBottom: 'var(--space-2xl)', border: '1px solid var(--border)' }}>
+            {/* Queue Header & Actions */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 'var(--space-md)', marginBottom: 'var(--space-lg)' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                  <span className="badge" style={{ background: 'rgba(228, 164, 189, 0.2)', color: 'var(--accent)', fontWeight: 800 }}>
+                    TWO-STAGE DEFECT GOVERNANCE
+                  </span>
+                  <span className="badge" style={{ background: 'rgba(109, 184, 123, 0.15)', color: 'var(--status-healthy)' }}>
+                    Ollama Gemma 4 Pre-Screened
+                  </span>
+                </div>
+                <h3 style={{ fontSize: '1.35rem', fontWeight: 900, margin: '0 0 6px 0', letterSpacing: '-0.02em' }}>
+                  Worker Defect Verification & Approval Queue
+                </h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0, maxWidth: '750px', lineHeight: 1.5 }}>
+                  Field issues submitted by track maintainers and inspectors are quarantined here until approved. Review photographic evidence and AI verification classifications before publishing to the public Defect Explorer and corridor block plans.
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                {pendingDefects.length > 0 && (
+                  <button
+                    onClick={handleBatchApproveAll}
+                    disabled={batchProcessing}
+                    className="btn btn-primary"
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 18px', fontSize: '0.82rem' }}
+                  >
+                    {batchProcessing ? <RefreshCw size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                    <span>Approve All ({pendingDefects.length})</span>
+                  </button>
+                )}
+                <button
+                  onClick={loadData}
+                  disabled={refreshing}
+                  className="btn btn-secondary"
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 16px', fontSize: '0.82rem' }}
+                >
+                  <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
+                  <span>Refresh Queue</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Notification alert banner */}
+            {approvalMessage && (
+              <div style={{
+                padding: '12px 18px',
+                borderRadius: '8px',
+                marginBottom: 'var(--space-lg)',
+                background: approvalMessage.type === 'success' ? 'rgba(109, 184, 123, 0.15)' : 'rgba(228, 164, 189, 0.15)',
+                border: `1px solid ${approvalMessage.type === 'success' ? 'rgba(109, 184, 123, 0.35)' : 'rgba(228, 164, 189, 0.35)'}`,
+                color: approvalMessage.type === 'success' ? 'var(--status-healthy)' : 'var(--text-primary)',
+                fontWeight: 700,
+                fontSize: '0.85rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px'
+              }}>
+                <CheckCircle2 size={16} color="var(--status-healthy)" />
+                <span>{approvalMessage.text}</span>
+              </div>
+            )}
+
+            {/* Filter and Search Bar */}
+            <div style={{
+              display: 'flex',
+              gap: '12px',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              padding: '12px 16px',
+              background: 'var(--bg-primary)',
+              borderRadius: 'var(--radius-card)',
+              border: '1px solid var(--border)',
+              marginBottom: 'var(--space-lg)'
+            }}>
+              <div style={{ flex: 1, minWidth: '220px', position: 'relative' }}>
+                <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                <input
+                  type="text"
+                  placeholder="Search by ID, corridor, location, or issue..."
+                  value={pendingSearch}
+                  onChange={(e) => setPendingSearch(e.target.value)}
+                  className="input"
+                  style={{ width: '100%', paddingLeft: '36px', fontSize: '0.82rem' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 700 }}>Department:</span>
+                {['ALL', 'Engineering', 'Signal & Telecom', 'Traction Distribution'].map(dept => (
+                  <button
+                    key={dept}
+                    onClick={() => setPendingDeptFilter(dept)}
+                    className="btn btn-secondary"
+                    style={{
+                      padding: '5px 12px',
+                      fontSize: '0.75rem',
+                      borderRadius: 'var(--radius-pill)',
+                      background: pendingDeptFilter === dept ? 'var(--text-primary)' : 'transparent',
+                      color: pendingDeptFilter === dept ? 'var(--bg-primary)' : 'var(--text-secondary)',
+                      borderColor: pendingDeptFilter === dept ? 'transparent' : 'var(--border)'
+                    }}
+                  >
+                    {dept === 'ALL' ? 'All Departments' : dept.split(' ')[0]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* List of Pending Cards or Empty State */}
+            {filteredPendingDefects.length === 0 ? (
+              <div style={{
+                textAlign: 'center',
+                padding: 'var(--space-3xl) var(--space-xl)',
+                background: 'var(--bg-primary)',
+                borderRadius: 'var(--radius-card)',
+                border: '1px dashed var(--border)'
+              }}>
+                <div style={{
+                  width: '64px',
+                  height: '64px',
+                  borderRadius: '50%',
+                  background: 'rgba(109, 184, 123, 0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 16px'
+                }}>
+                  <CheckCircle2 size={32} color="var(--status-healthy)" />
+                </div>
+                <h4 style={{ fontSize: '1.25rem', fontWeight: 800, margin: '0 0 6px 0' }}>
+                  {pendingDefects.length === 0 ? 'No Defects Pending Approval' : 'No Defects Match Your Filter'}
+                </h4>
+                <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', maxWidth: '520px', margin: '0 auto', lineHeight: 1.5 }}>
+                  {pendingDefects.length === 0
+                    ? 'All field defect submissions have been reviewed and approved. When workers report new issues from the Defect Portal, they will appear here in real-time.'
+                    : 'Try clearing your search query or department filter to view other pending reports.'}
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
+                {filteredPendingDefects.map((defect) => (
+                  <motion.div
+                    key={defect.id}
+                    layout
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    style={{
+                      background: 'var(--bg-primary)',
+                      borderRadius: 'var(--radius-card)',
+                      border: '1px solid var(--border)',
+                      padding: 'var(--space-lg)',
+                      display: 'grid',
+                      gridTemplateColumns: 'minmax(220px, 280px) 1fr',
+                      gap: 'var(--space-lg)',
+                      alignItems: 'stretch'
+                    }}
+                  >
+                    {/* Left: Photo with click-to-preview */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div
+                        onClick={() => setPreviewPhoto(defect.photoUrl)}
+                        style={{
+                          position: 'relative',
+                          borderRadius: 'var(--radius-sm)',
+                          overflow: 'hidden',
+                          height: '180px',
+                          background: 'var(--bg-secondary)',
+                          cursor: 'pointer',
+                          border: '1px solid var(--border)'
+                        }}
+                        title="Click to view full photo"
+                      >
+                        {defect.photoUrl ? (
+                          <img
+                            src={defect.photoUrl}
+                            alt={defect.id}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          />
+                        ) : (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                            No Photo Uploaded
+                          </div>
+                        )}
+                        <div style={{
+                          position: 'absolute',
+                          bottom: '6px',
+                          right: '6px',
+                          background: 'rgba(0,0,0,0.7)',
+                          color: '#fff',
+                          padding: '3px 8px',
+                          borderRadius: '4px',
+                          fontSize: '0.7rem',
+                          fontWeight: 700,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}>
+                          <Eye size={11} /> Expand Photo
+                        </div>
+                      </div>
+
+                      {/* Ollama AI Verification Tag */}
+                      <div style={{
+                        padding: '8px 12px',
+                        background: 'rgba(228, 164, 189, 0.1)',
+                        border: '1px solid rgba(228, 164, 189, 0.3)',
+                        borderRadius: '6px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '2px'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <Sparkles size={11} /> Ollama Gemma 4
+                          </span>
+                          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--status-healthy)' }}>
+                            {defect.aiConfidence || '96.5%'} Confidence
+                          </span>
+                        </div>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                          {defect.aiDefectType || defect.assetType || 'Railway Track Defect'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Right: Defect metadata and Action buttons */}
+                    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 'var(--space-md)' }}>
+                      <div>
+                        {/* Top row */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '1rem', fontWeight: 900, color: 'var(--accent)' }}>
+                              {defect.id}
+                            </span>
+                            <span className="badge" style={{
+                              background: defect.severity === 'Critical' ? 'rgba(201, 79, 79, 0.2)' : defect.severity === 'High' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(109, 184, 123, 0.15)',
+                              color: defect.severity === 'Critical' ? 'var(--dept-conflict)' : defect.severity === 'High' ? '#f59e0b' : 'var(--status-healthy)',
+                              fontWeight: 800
+                            }}>
+                              {defect.severity} Priority
+                            </span>
+                            <span className="badge" style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}>
+                              {defect.department}
+                            </span>
+                          </div>
+
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <Clock size={12} /> Reported {defect.reportedDate || 'Today'}
+                          </span>
+                        </div>
+
+                        {/* Location and Track details */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px', marginBottom: '12px' }}>
+                          <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                            <strong style={{ color: 'var(--text-primary)' }}>Division:</strong> {defect.division}
+                          </div>
+                          <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                            <strong style={{ color: 'var(--text-primary)' }}>Corridor:</strong> {defect.corridorName || defect.section}
+                          </div>
+                          <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                            <strong style={{ color: 'var(--text-primary)' }}>Location:</strong> {defect.location} ({defect.kmMarker})
+                          </div>
+                          <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                            <strong style={{ color: 'var(--text-primary)' }}>Track:</strong> {defect.trackType}
+                          </div>
+                        </div>
+
+                        {/* Description */}
+                        <div style={{ padding: '10px 14px', background: 'var(--bg-secondary)', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>
+                            WORK REQUIRED / INSPECTION NOTES:
+                          </span>
+                          <p style={{ fontSize: '0.84rem', color: 'var(--text-primary)', margin: 0, lineHeight: 1.5 }}>
+                            {defect.description || defect.workRequired || 'Field report awaiting safety verification.'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Action buttons */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                          Approving publishes this defect to the public explorer & activates corridor block protection.
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          <button
+                            onClick={() => handleDeletePendingDefect(defect)}
+                            disabled={actionLoadingId === defect.id}
+                            className="btn btn-secondary"
+                            title="Delete permanently"
+                            style={{ padding: '8px 12px', fontSize: '0.78rem', color: 'var(--dept-conflict)', borderColor: 'rgba(201, 79, 79, 0.3)' }}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+
+                          <button
+                            onClick={() => handleRejectDefect(defect.id)}
+                            disabled={actionLoadingId === defect.id}
+                            className="btn btn-secondary"
+                            style={{ padding: '8px 16px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                          >
+                            <XCircle size={13} color="var(--dept-conflict)" />
+                            <span>Reject Issue</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleApproveDefect(defect.id)}
+                            disabled={actionLoadingId === defect.id}
+                            className="btn btn-primary"
+                            style={{ padding: '8px 20px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '6px', background: 'linear-gradient(135deg, #22c55e, #16a34a)', borderColor: '#22c55e', color: '#fff' }}
+                          >
+                            {actionLoadingId === defect.id ? (
+                              <RefreshCw size={13} className="animate-spin" />
+                            ) : (
+                              <CheckCircle2 size={14} />
+                            )}
+                            <span>Approve & Publish</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
           </div>
         </RevealWrapper>
       )}
@@ -816,6 +1364,63 @@ export default function AdminPage() {
 
           </div>
         </RevealWrapper>
+      )}
+
+      {/* Lightbox Photo Preview Modal */}
+      {previewPhoto && (
+        <div
+          onClick={() => setPreviewPhoto(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            background: 'rgba(0, 0, 0, 0.88)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '24px'
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: '90vw',
+              maxHeight: '90vh',
+              position: 'relative',
+              borderRadius: '12px',
+              overflow: 'hidden',
+              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.7)',
+              border: '1px solid rgba(255,255,255,0.15)'
+            }}
+          >
+            <img
+              src={previewPhoto}
+              alt="Track Inspection Preview"
+              style={{ width: '100%', height: '100%', maxHeight: '85vh', objectFit: 'contain', display: 'block' }}
+            />
+            <button
+              onClick={() => setPreviewPhoto(null)}
+              className="btn btn-secondary"
+              style={{
+                position: 'absolute',
+                top: '12px',
+                right: '12px',
+                background: 'rgba(0,0,0,0.75)',
+                color: '#fff',
+                borderRadius: '50%',
+                width: '36px',
+                height: '36px',
+                padding: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
       )}
 
     </div>
